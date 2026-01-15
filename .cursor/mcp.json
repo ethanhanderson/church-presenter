@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+        "motion": {
+            "command": "npx -y https://api.motion.dev/registry.tgz?package=motion-studio-mcp&version=latest",
+            "env": {},
+            "args": []
+        },
+        "supabase": {
+            "url": "https://mcp.supabase.com/mcp"
+        }
+    }
+}
