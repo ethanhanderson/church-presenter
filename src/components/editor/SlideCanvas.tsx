@@ -97,8 +97,8 @@ export function SlideCanvas({ slide, theme }: SlideCanvasProps) {
 
     const updateScale = (width: number, height: number) => {
       if (!width || !height) return;
-      const scale = Math.min(width / baseSize.width, height / baseSize.height);
-      setTextScale(scale || 1);
+      const nextScale = Math.min(width / baseSize.width, height / baseSize.height) || 1;
+      setTextScale((prev) => (Math.abs(prev - nextScale) < 0.001 ? prev : nextScale));
     };
 
     const observer = new ResizeObserver((entries) => {
@@ -1024,11 +1024,12 @@ function TextLayerContent({ layer, theme, isEditing, textScale, onChange, onBlur
   const padding = layer.padding ?? 2; // Default 2% padding
   const textStyle = layer.style || theme?.primaryText;
   const textCss = getTextStyle(textStyle, textScale);
+  const styleSignature = useMemo(() => getTextStyleSignature(textStyle), [textStyle]);
 
   // Calculate fit scale based on container and text dimensions
   useEffect(() => {
     if (textFit === 'auto' || isEditing) {
-      setFitScale(1);
+      setFitScale((prev) => (prev === 1 ? prev : 1));
       return;
     }
 
@@ -1049,7 +1050,7 @@ function TextLayerContent({ layer, theme, isEditing, textScale, onChange, onBlur
       const textHeight = text.scrollHeight;
 
       if (textWidth === 0 || textHeight === 0) {
-        setFitScale(1);
+        setFitScale((prev) => (prev === 1 ? prev : 1));
         return;
       }
 
@@ -1065,7 +1066,7 @@ function TextLayerContent({ layer, theme, isEditing, textScale, onChange, onBlur
 
       // Clamp to reasonable bounds
       newScale = Math.max(0.1, Math.min(5, newScale));
-      setFitScale(newScale);
+      setFitScale((prev) => (Math.abs(prev - newScale) < 0.001 ? prev : newScale));
     };
 
     calculateFitScale();
@@ -1077,7 +1078,7 @@ function TextLayerContent({ layer, theme, isEditing, textScale, onChange, onBlur
     }
 
     return () => observer.disconnect();
-  }, [textFit, padding, layer.content, textStyle, textScale, isEditing]);
+  }, [textFit, padding, layer.content, styleSignature, textScale, isEditing]);
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
@@ -1146,6 +1147,32 @@ function getTransformOrigin(style?: Partial<Theme['primaryText']>): string {
   }[verticalAlignment];
 
   return `${horizontal} ${vertical}`;
+}
+
+function getTextStyleSignature(style?: Partial<Theme['primaryText']>): string {
+  if (!style) return '';
+  const font = style.font;
+  const shadow = style.shadow;
+  const outline = style.outline;
+  return [
+    style.alignment ?? '',
+    style.verticalAlignment ?? '',
+    style.color ?? '',
+    font?.family ?? '',
+    font?.size ?? '',
+    font?.weight ?? '',
+    font?.italic ?? '',
+    font?.lineHeight ?? '',
+    font?.letterSpacing ?? '',
+    shadow?.enabled ?? '',
+    shadow?.offsetX ?? '',
+    shadow?.offsetY ?? '',
+    shadow?.blur ?? '',
+    shadow?.color ?? '',
+    outline?.enabled ?? '',
+    outline?.width ?? '',
+    outline?.color ?? '',
+  ].join('|');
 }
 
 interface ShapeLayerContentProps {

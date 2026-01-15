@@ -1,57 +1,77 @@
-import * as React from "react"
-import { GripVerticalIcon } from "lucide-react"
-import * as ResizablePrimitive from "react-resizable-panels"
+import type * as React from "react";
 
-import { cn } from "@/lib/utils"
+import { Group, Panel, Separator } from "react-resizable-panels";
+
+import { cn } from "@/lib/utils";
+
+// In react-resizable-panels v4.x, numeric values are pixels, not percentages.
+// This helper converts numeric values to percentage strings for backward compatibility.
+function toPercentage(value: number | string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number") return `${value}%`;
+  return value;
+}
 
 function ResizablePanelGroup({
   className,
+  direction,
   ...props
-}: React.ComponentProps<typeof ResizablePrimitive.PanelGroup>) {
+}: React.ComponentProps<typeof Group> & {
+  direction?: "horizontal" | "vertical";
+}) {
   return (
-    <ResizablePrimitive.PanelGroup
+    <Group
       data-slot="resizable-panel-group"
       className={cn(
-        "flex h-full w-full data-[panel-group-direction=vertical]:flex-col",
+        "flex h-full w-full data-[orientation=vertical]:flex-col",
         className
       )}
+      orientation={direction}
       {...props}
     />
-  )
+  );
 }
 
-const ResizablePanel = React.forwardRef<
-  React.ElementRef<typeof ResizablePrimitive.Panel>,
-  React.ComponentProps<typeof ResizablePrimitive.Panel>
->((props, ref) => (
-  <ResizablePrimitive.Panel ref={ref} data-slot="resizable-panel" {...props} />
-))
-
-ResizablePanel.displayName = "ResizablePanel"
+function ResizablePanel({
+  defaultSize,
+  minSize,
+  maxSize,
+  collapsedSize,
+  ...props
+}: React.ComponentProps<typeof Panel>) {
+  return (
+    <Panel
+      data-slot="resizable-panel"
+      defaultSize={toPercentage(defaultSize)}
+      minSize={toPercentage(minSize)}
+      maxSize={toPercentage(maxSize)}
+      collapsedSize={toPercentage(collapsedSize)}
+      {...props}
+    />
+  );
+}
 
 function ResizableHandle({
   withHandle,
   className,
   ...props
-}: React.ComponentProps<typeof ResizablePrimitive.PanelResizeHandle> & {
-  withHandle?: boolean
+}: React.ComponentProps<typeof Separator> & {
+  withHandle?: boolean;
 }) {
   return (
-    <ResizablePrimitive.PanelResizeHandle
+    <Separator
       data-slot="resizable-handle"
       className={cn(
-        "bg-border focus-visible:ring-ring relative flex w-px items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-hidden data-[panel-group-direction=vertical]:h-px data-[panel-group-direction=vertical]:w-full data-[panel-group-direction=vertical]:after:left-0 data-[panel-group-direction=vertical]:after:h-1 data-[panel-group-direction=vertical]:after:w-full data-[panel-group-direction=vertical]:after:translate-x-0 data-[panel-group-direction=vertical]:after:-translate-y-1/2 [&[data-panel-group-direction=vertical]>div]:rotate-90",
+        "bg-border focus-visible:ring-ring relative flex w-px items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-hidden data-[orientation=vertical]:h-px data-[orientation=vertical]:w-full data-[orientation=vertical]:after:left-0 data-[orientation=vertical]:after:h-1 data-[orientation=vertical]:after:w-full data-[orientation=vertical]:after:translate-x-0 data-[orientation=vertical]:after:-translate-y-1/2 [&[data-orientation=vertical]>div]:rotate-90",
         className
       )}
       {...props}
     >
       {withHandle && (
-        <div className="bg-border z-10 flex h-4 w-3 items-center justify-center rounded-xs border">
-          <GripVerticalIcon className="size-2.5" />
-        </div>
+        <div className="bg-border z-10 flex h-6 w-1 shrink-0 rounded-lg" />
       )}
-    </ResizablePrimitive.PanelResizeHandle>
-  )
+    </Separator>
+  );
 }
 
-export { ResizablePanelGroup, ResizablePanel, ResizableHandle }
+export { ResizablePanelGroup, ResizablePanel, ResizableHandle };

@@ -52,8 +52,8 @@ export function SlideRenderer({
 
     const updateScale = (width: number, height: number) => {
       if (!width || !height) return;
-      const scale = Math.min(width / baseSize.width, height / baseSize.height);
-      setTextScale(scale || 1);
+      const nextScale = Math.min(width / baseSize.width, height / baseSize.height) || 1;
+      setTextScale((prev) => (Math.abs(prev - nextScale) < 0.001 ? prev : nextScale));
     };
 
     const observer = new ResizeObserver((entries) => {
@@ -186,11 +186,12 @@ function TextLayerRenderer({ layer, primaryTextStyle, textScale }: TextLayerRend
   const style = layer.style || primaryTextStyle;
   const textFit = layer.textFit || 'auto';
   const padding = layer.padding ?? 2;
+  const styleSignature = useMemo(() => getTextStyleSignature(style), [style]);
 
   // Calculate fit scale based on container and text dimensions
   useEffect(() => {
     if (textFit === 'auto') {
-      setFitScale(1);
+      setFitScale((prev) => (prev === 1 ? prev : 1));
       return;
     }
 
@@ -211,7 +212,7 @@ function TextLayerRenderer({ layer, primaryTextStyle, textScale }: TextLayerRend
       const textHeight = text.scrollHeight;
 
       if (textWidth === 0 || textHeight === 0) {
-        setFitScale(1);
+      setFitScale((prev) => (prev === 1 ? prev : 1));
         return;
       }
 
@@ -224,7 +225,7 @@ function TextLayerRenderer({ layer, primaryTextStyle, textScale }: TextLayerRend
       }
 
       newScale = Math.max(0.1, Math.min(5, newScale));
-      setFitScale(newScale);
+    setFitScale((prev) => (Math.abs(prev - newScale) < 0.001 ? prev : newScale));
     };
 
     calculateFitScale();
@@ -235,7 +236,7 @@ function TextLayerRenderer({ layer, primaryTextStyle, textScale }: TextLayerRend
     }
 
     return () => observer.disconnect();
-  }, [textFit, padding, layer.content, style, textScale]);
+  }, [textFit, padding, layer.content, styleSignature, textScale]);
 
   const containerStyle: React.CSSProperties = {
     ...getTextContainerStyle(style),
@@ -283,6 +284,32 @@ function getTransformOrigin(style?: Partial<TextStyle>): string {
   }[verticalAlignment];
 
   return `${horizontal} ${vertical}`;
+}
+
+function getTextStyleSignature(style?: Partial<TextStyle>): string {
+  if (!style) return '';
+  const font = style.font;
+  const shadow = style.shadow;
+  const outline = style.outline;
+  return [
+    style.alignment ?? '',
+    style.verticalAlignment ?? '',
+    style.color ?? '',
+    font?.family ?? '',
+    font?.size ?? '',
+    font?.weight ?? '',
+    font?.italic ?? '',
+    font?.lineHeight ?? '',
+    font?.letterSpacing ?? '',
+    shadow?.enabled ?? '',
+    shadow?.offsetX ?? '',
+    shadow?.offsetY ?? '',
+    shadow?.blur ?? '',
+    shadow?.color ?? '',
+    outline?.enabled ?? '',
+    outline?.width ?? '',
+    outline?.color ?? '',
+  ].join('|');
 }
 
 interface ShapeLayerRendererProps {

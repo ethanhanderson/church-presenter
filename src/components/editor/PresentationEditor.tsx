@@ -45,6 +45,7 @@ import { SlideInspector } from './SlideInspector';
 import { SONG_SECTIONS, formatSectionLabel, getSlideGroupLabel } from '@/lib/models';
 import type { SongSection, Slide, Theme } from '@/lib/models';
 import { cn } from '@/lib/utils';
+import { loadBundledFonts } from '@/lib/services/fontService';
 
 interface PresentationEditorProps {
   onRequestLink?: () => void;
@@ -92,6 +93,10 @@ export function PresentationEditor({ onRequestLink }: PresentationEditorProps) {
     if (groups.length > 0 || isLoadingGroups) return;
     loadGroups();
   }, [presentation.manifest.externalSong, groups.length, isLoadingGroups, loadGroups]);
+
+  useEffect(() => {
+    void loadBundledFonts(presentation, filePath);
+  }, [presentation, filePath]);
 
   // Group slides by section
   const slidesBySection = groupSlidesBySection(presentation.slides);
@@ -350,7 +355,7 @@ function SlideListItem({
               <SlideThumbnail
                 slide={slide}
                 theme={theme}
-                isSelected={false}
+                isSelected={isSelected}
                 isActive={isLive}
                 slideNumber={slideNumber}
                 groupLabel={groupLabel}

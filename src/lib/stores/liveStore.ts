@@ -22,6 +22,7 @@ export interface LiveStateEvent {
 export interface LivePresentationEvent {
   presentation: Presentation | null;
   slideId: string | null;
+  presentationPath: string | null;
 }
 
 interface LiveState {
@@ -34,6 +35,9 @@ interface LiveState {
   currentBuildIndex: number; // -1 means no builds triggered yet, 0+ means that build step is active
   isBlackout: boolean;
   isClear: boolean;
+  
+  // Cached computed state (updated via actions, not getters)
+  _visibleLayerIds: string[];
   
   // Computed
   currentSlide: Slide | null;
@@ -110,6 +114,21 @@ function calculateVisibleLayerIds(slide: Slide | null, buildIndex: number): stri
   return Array.from(visibleIds);
 }
 
+// Helper to update cached visible layer IDs in state
+function updateVisibleLayerIds(state: LiveState) {
+  const slide = state.presentation?.slides.find((s) => s.id === state.currentSlideId) || null;
+  const newIds = calculateVisibleLayerIds(slide, state.currentBuildIndex);
+  
+  // Only update if the arrays are actually different (by content)
+  const currentIds = state._visibleLayerIds;
+  if (
+    newIds.length !== currentIds.length ||
+    newIds.some((id, i) => id !== currentIds[i])
+  ) {
+    state._visibleLayerIds = newIds;
+  }
+}
+
 export const useLiveStore = create<LiveState>()(
   immer((set, get) => ({
     isLive: false,
@@ -120,6 +139,9 @@ export const useLiveStore = create<LiveState>()(
     currentBuildIndex: -1,
     isBlackout: false,
     isClear: false,
+    
+    // Cached computed state
+    _visibleLayerIds: [],
 
     // Computed getters
     get currentSlide() {
@@ -156,8 +178,8 @@ export const useLiveStore = create<LiveState>()(
     },
 
     get visibleLayerIds() {
-      const { currentSlide, currentBuildIndex } = get();
-      return calculateVisibleLayerIds(currentSlide, currentBuildIndex);
+      // Return the cached array to maintain stable reference
+      return get()._visibleLayerIds;
     },
 
     get hasMoreBuilds() {
@@ -175,6 +197,7 @@ export const useLiveStore = create<LiveState>()(
         state.currentBuildIndex = -1; // Reset build index
         state.isBlackout = false;
         state.isClear = false;
+        updateVisibleLayerIds(state);
       });
 
       get().emitState();
@@ -192,6 +215,7 @@ export const useLiveStore = create<LiveState>()(
         state.currentBuildIndex = -1;
         state.isBlackout = false;
         state.isClear = false;
+        state._visibleLayerIds = [];
       });
 
       get().emitState();
@@ -212,6 +236,7 @@ export const useLiveStore = create<LiveState>()(
         state.currentBuildIndex = -1; // Reset build index when changing slides
         state.isBlackout = false;
         state.isClear = false;
+        updateVisibleLayerIds(state);
       });
 
       get().emitState();
@@ -231,6 +256,7 @@ export const useLiveStore = create<LiveState>()(
         state.currentBuildIndex = -1; // Reset build index when changing slides
         state.isBlackout = false;
         state.isClear = false;
+        updateVisibleLayerIds(state);
       });
 
       get().emitState();
@@ -278,6 +304,7 @@ export const useLiveStore = create<LiveState>()(
 
       set((state) => {
         state.currentBuildIndex = state.currentBuildIndex + 1;
+        updateVisibleLayerIds(state);
       });
 
       get().emitState();
@@ -287,6 +314,7 @@ export const useLiveStore = create<LiveState>()(
     resetBuild: () => {
       set((state) => {
         state.currentBuildIndex = -1;
+        updateVisibleLayerIds(state);
       });
       get().emitState();
     },
@@ -298,6 +326,7 @@ export const useLiveStore = create<LiveState>()(
 
       set((state) => {
         state.currentBuildIndex = index;
+        updateVisibleLayerIds(state);
       });
 
       get().emitState();
@@ -354,10 +383,11 @@ export const useLiveStore = create<LiveState>()(
     },
 
     emitPresentation: () => {
-      const { presentation, currentSlideId } = get();
+      const { presentation, currentSlideId, presentationPath } = get();
       const event: LivePresentationEvent = {
         presentation: presentation ? JSON.parse(JSON.stringify(presentation)) : null,
         slideId: currentSlideId,
+        presentationPath,
       };
 
       emit('live:presentation', event);
@@ -369,14 +399,23 @@ export const useLiveStore = create<LiveState>()(
     },
 
     setupListeners: async () => {
-      // Listen for state requests from output window
-      const unlisten = await listen('live:request-state', () => {
+      const unlistenState = await listen('live:request-state', () => {
         get().emitState();
         get().emitPresentation();
         get().emitSlide();
       });
+      const unlistenNext = await listen('live:next', () => {
+        get().nextSlideAction();
+      });
+      const unlistenPrevious = await listen('live:previous', () => {
+        get().previousSlideAction();
+      });
 
-      return unlisten;
+      return () => {
+        unlistenState();
+        unlistenNext();
+        unlistenPrevious();
+      };
     },
 
     remapPresentationPath: (oldBase, newBase) => {

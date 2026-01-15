@@ -336,6 +336,7 @@ export function createPresentation(title: string, partial?: Partial<Presentation
       updatedAt: now,
       themeId: defaultTheme.id,
       media: [],
+      fonts: [],
     },
     slides: [blankSlide],
     arrangement: createArrangement([blankSlide]),
@@ -460,6 +461,7 @@ export function createSongPresentation(song: ImportedSong): Presentation {
       updatedAt: now,
       themeId: defaultTheme.id,
       media: [],
+      fonts: [],
       externalSong: {
         songId: song.id,
         groupId: song.groupId,

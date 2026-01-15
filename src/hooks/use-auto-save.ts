@@ -4,7 +4,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useEditorStore, useSettingsStore } from '@/lib/stores';
-import { saveBundle, openBundle, type MediaFileRef } from '@/lib/tauri-api';
+import { saveBundle, openBundle, type FontFileRef, type MediaFileRef } from '@/lib/tauri-api';
 import { generatePresentationPath, generateSongPresentationPath } from '@/lib/services/appDataService';
 import type { Presentation } from '@/lib/models';
 
@@ -67,7 +67,7 @@ export function useAutoSave(options: UseAutoSaveOptions = {}) {
    * Perform the actual save operation
    */
   const performSave = useCallback(async () => {
-    const { presentation, filePath, pendingMedia, isDirty } = useEditorStore.getState();
+    const { presentation, filePath, pendingMedia, pendingFonts, isDirty } = useEditorStore.getState();
     
     if (!presentation || !isDirty || isSavingRef.current) {
       return;
@@ -128,6 +128,7 @@ export function useAutoSave(options: UseAutoSaveOptions = {}) {
           ...presentation.manifest,
           updatedAt: new Date().toISOString(),
           media: safeMedia,
+          fonts: Array.isArray(presentation.manifest.fonts) ? presentation.manifest.fonts : [],
         },
       };
 
@@ -141,10 +142,34 @@ export function useAutoSave(options: UseAutoSaveOptions = {}) {
             source_path: sourcePath,
             bundle_path: media.path,
           });
+        } else if (filePath && savePath === filePath) {
+          mediaRefs.push({
+            id: media.id,
+            source_path: `bundle:${media.path}`,
+            bundle_path: media.path,
+          });
         }
       }
 
-      await saveBundle(savePath, updatedPresentation, mediaRefs);
+      const fontRefs: FontFileRef[] = [];
+      for (const font of updatedPresentation.manifest.fonts) {
+        const sourcePath = pendingFonts.get(font.id);
+        if (sourcePath) {
+          fontRefs.push({
+            id: font.id,
+            source_path: sourcePath,
+            bundle_path: font.path,
+          });
+        } else if (filePath && savePath === filePath) {
+          fontRefs.push({
+            id: font.id,
+            source_path: `bundle:${font.path}`,
+            bundle_path: font.path,
+          });
+        }
+      }
+
+      await saveBundle(savePath, updatedPresentation, mediaRefs, fontRefs);
 
       // Update store state - set isDirty to false and update autoSave status
       const now = new Date().toISOString();
@@ -153,6 +178,7 @@ export function useAutoSave(options: UseAutoSaveOptions = {}) {
         filePath: savePath,
         isDirty: false,
         pendingMedia: new Map(),
+        pendingFonts: new Map(),
         autoSave: {
           status: 'saved',
           lastSaved: now,
@@ -348,18 +374,36 @@ export async function resolveConflict(
   
   if (choice === 'local') {
     // Overwrite remote with local version
-    await saveBundle(filePath, {
-      ...localVersion,
-      manifest: {
-        ...localVersion.manifest,
-        updatedAt: now,
+    const mediaRefs: MediaFileRef[] = (localVersion.manifest.media ?? []).map((media) => ({
+      id: media.id,
+      source_path: `bundle:${media.path}`,
+      bundle_path: media.path,
+    }));
+    const fontRefs: FontFileRef[] = (localVersion.manifest.fonts ?? []).map((font) => ({
+      id: font.id,
+      source_path: `bundle:${font.path}`,
+      bundle_path: font.path,
+    }));
+
+    await saveBundle(
+      filePath,
+      {
+        ...localVersion,
+        manifest: {
+          ...localVersion.manifest,
+          updatedAt: now,
+        },
       },
-    }, []);
+      mediaRefs,
+      fontRefs
+    );
     
     useEditorStore.setState({
       presentation: localVersion,
       filePath,
       isDirty: false,
+      pendingMedia: new Map(),
+      pendingFonts: new Map(),
       autoSave: {
         status: 'saved',
         lastSaved: now,
@@ -372,6 +416,8 @@ export async function resolveConflict(
       presentation: remoteVersion,
       filePath,
       isDirty: false,
+      pendingMedia: new Map(),
+      pendingFonts: new Map(),
       autoSave: {
         status: 'saved',
         lastSaved: remoteVersion.manifest.updatedAt,

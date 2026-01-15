@@ -22,6 +22,21 @@ export interface MediaEntry {
   duration?: number; // For videos/audio in seconds
 }
 
+export type FontStyleType = 'normal' | 'italic';
+
+export interface FontEntry {
+  id: string;
+  family: string;
+  fullName: string;
+  postscriptName?: string | null;
+  path: string; // Path within the bundle (e.g., "fonts/abc123.ttf")
+  mime: string;
+  sha256: string;
+  byteSize: number;
+  weight: number;
+  style: FontStyleType;
+}
+
 // ============================================================================
 // Theme Types
 // ============================================================================
@@ -373,6 +388,9 @@ export interface PresentationManifest {
   
   // Media manifest
   media: MediaEntry[];
+
+  // Font manifest
+  fonts: FontEntry[];
 
   // External link to Music Manager song (optional)
   externalSong?: ExternalSongLink;

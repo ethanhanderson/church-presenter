@@ -114,8 +114,10 @@ export default function App() {
     goLive,
     endLive,
     goToSlide,
+    nextSlideAction,
+    previousSlideAction,
   } = useLiveStore();
-  const { selectedSlideId } = useShowStore();
+  const { selectedSlideId, setSelectedSlideId } = useShowStore();
   const { groups } = useMusicManagerStore();
 
   // Conflict state for auto-save
@@ -429,46 +431,23 @@ export default function App() {
     setNewPresentationOpen(true);
   }, [catalog.libraries.length]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        switch (e.key.toLowerCase()) {
-          case 'n':
-            e.preventDefault();
-            handleRequestNewPresentation();
-            break;
-          case 'o':
-            e.preventDefault();
-            handleOpenPresentation();
-            break;
-          case 's':
-            e.preventDefault();
-            if (e.shiftKey) {
-              handleSaveAs();
-            } else {
-              handleSave();
-            }
-            break;
-          case 'z':
-            e.preventDefault();
-            undo();
-            break;
-          case 'y':
-            e.preventDefault();
-            redo();
-            break;
-          case ',':
-            e.preventDefault();
-            setSettingsOpen(true);
-            break;
-        }
+  const moveShowSelection = useCallback(
+    (direction: 'next' | 'previous') => {
+      if (!presentation) return;
+      if (!selectedSlideId) {
+        setSelectedSlideId(presentation.slides[0]?.id || null);
+        return;
       }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleRequestNewPresentation, undo, redo]);
+      const index = presentation.slides.findIndex((slide) => slide.id === selectedSlideId);
+      if (index === -1) return;
+      const nextIndex =
+        direction === 'next'
+          ? Math.min(index + 1, presentation.slides.length - 1)
+          : Math.max(index - 1, 0);
+      setSelectedSlideId(presentation.slides[nextIndex]?.id || null);
+    },
+    [presentation, selectedSlideId, setSelectedSlideId]
+  );
 
   // Handlers
 
@@ -921,6 +900,89 @@ export default function App() {
     }
   }, [finalizeLibraryAssociation, handleSaveAs, pendingLibraryId, presentation, savePresentation]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTypingTarget =
+        target &&
+        (target.isContentEditable ||
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT');
+
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key.toLowerCase()) {
+          case 'n':
+            e.preventDefault();
+            handleRequestNewPresentation();
+            break;
+          case 'o':
+            e.preventDefault();
+            handleOpenPresentation();
+            break;
+          case 's':
+            e.preventDefault();
+            if (e.shiftKey) {
+              handleSaveAs();
+            } else {
+              handleSave();
+            }
+            break;
+          case 'z':
+            e.preventDefault();
+            undo();
+            break;
+          case 'y':
+            e.preventDefault();
+            redo();
+            break;
+          case ',':
+            e.preventDefault();
+            setSettingsOpen(true);
+            break;
+        }
+        return;
+      }
+
+      if (isTypingTarget) return;
+
+      const key = e.key;
+      if (key === 'ArrowRight' || key === 'ArrowDown' || key === 'PageDown' || key === ' ' || key === 'Enter') {
+        e.preventDefault();
+        if (isLive) {
+          nextSlideAction();
+        } else {
+          moveShowSelection('next');
+        }
+        return;
+      }
+
+      if (key === 'ArrowLeft' || key === 'ArrowUp' || key === 'PageUp' || key === 'Backspace') {
+        e.preventDefault();
+        if (isLive) {
+          previousSlideAction();
+        } else {
+          moveShowSelection('previous');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    handleRequestNewPresentation,
+    handleOpenPresentation,
+    handleSave,
+    handleSaveAs,
+    undo,
+    redo,
+    isLive,
+    nextSlideAction,
+    previousSlideAction,
+    moveShowSelection,
+  ]);
+
   const handleSaveAllAndReport = useCallback(async () => {
     const report: SaveReportItem[] = [];
     const editorStateBefore = useEditorStore.getState();
@@ -952,6 +1014,14 @@ export default function App() {
           status: 'warning',
           title: 'Media changes are pending',
           detail: 'Some media assets have not been bundled yet.',
+        });
+      }
+
+      if (editorStateAfter.pendingFonts.size > 0) {
+        report.push({
+          status: 'warning',
+          title: 'Font changes are pending',
+          detail: 'Some font files have not been bundled yet.',
         });
       }
 

@@ -36,7 +36,14 @@ import {
   defaultShapeStyle,
   defaultSlideTransition,
 } from '../models';
-import { openBundle, saveBundle, type MediaFileRef } from '../tauri-api';
+import {
+  importFontFiles,
+  openBundle,
+  saveBundle,
+  type FontFileRef,
+  type MediaFileRef,
+  type SystemFontInfo,
+} from '../tauri-api';
 import { getDocumentsDataDirPath } from '../services/appDataService';
 
 // ============================================================================
@@ -64,6 +71,11 @@ const ensureValidPresentation = (presentation: Presentation) => {
   if (!Array.isArray(presentation.manifest.media)) {
     // Some older bundles may omit the media manifest entirely
     presentation.manifest.media = [];
+  }
+
+  if (!Array.isArray(presentation.manifest.fonts)) {
+    // Some older bundles may omit the font manifest entirely
+    presentation.manifest.fonts = [];
   }
 
   if (!presentation.slides || presentation.slides.length === 0) {
@@ -182,6 +194,9 @@ interface EditorState {
   
   // Pending media (not yet saved to bundle)
   pendingMedia: Map<string, string>; // mediaId -> sourcePath
+
+  // Pending fonts (not yet saved to bundle)
+  pendingFonts: Map<string, string>; // fontId -> sourcePath
   
   // Auto-save state
   autoSave: AutoSaveState;
@@ -253,6 +268,9 @@ interface EditorState {
   // Media
   addMedia: (entry: MediaEntry, sourcePath: string) => void;
   removeMedia: (mediaId: string) => void;
+
+  // Fonts
+  ensureFontFamilyBundled: (family: string, systemFonts: SystemFontInfo[]) => Promise<void>;
   
   // Undo/Redo
   undo: () => void;
@@ -277,6 +295,7 @@ export const useEditorStore = create<EditorState>()(
     redoStack: [],
     maxUndoLevels: 50,
     pendingMedia: new Map(),
+    pendingFonts: new Map(),
     autoSave: {
       status: 'idle',
       lastSaved: null,
@@ -294,6 +313,7 @@ export const useEditorStore = create<EditorState>()(
         state.undoStack = [];
         state.redoStack = [];
         state.pendingMedia = new Map();
+        state.pendingFonts = new Map();
         state.autoSave = { status: 'pending', lastSaved: null, lastError: null };
       });
     },
@@ -324,6 +344,7 @@ export const useEditorStore = create<EditorState>()(
         state.undoStack = [];
         state.redoStack = [];
         state.pendingMedia = new Map();
+        state.pendingFonts = new Map();
         state.autoSave = {
           status: 'idle',
           lastSaved: presentation.manifest.updatedAt,
@@ -333,7 +354,7 @@ export const useEditorStore = create<EditorState>()(
     },
 
     savePresentation: async (path?: string) => {
-      const { presentation, filePath, pendingMedia } = get();
+      const { presentation, filePath, pendingMedia, pendingFonts } = get();
       if (!presentation) return;
 
       const savePath = path || filePath;
@@ -354,6 +375,7 @@ export const useEditorStore = create<EditorState>()(
             ...presentation.manifest,
             updatedAt,
             media: Array.isArray(presentation.manifest.media) ? presentation.manifest.media : [],
+            fonts: Array.isArray(presentation.manifest.fonts) ? presentation.manifest.fonts : [],
           },
         };
 
@@ -367,16 +389,42 @@ export const useEditorStore = create<EditorState>()(
               source_path: sourcePath,
               bundle_path: media.path,
             });
+          } else if (filePath && savePath === filePath) {
+            mediaRefs.push({
+              id: media.id,
+              source_path: `bundle:${media.path}`,
+              bundle_path: media.path,
+            });
           }
         }
 
-        await saveBundle(savePath, updatedPresentation, mediaRefs);
+        // Build font refs for pending fonts
+        const fontRefs: FontFileRef[] = [];
+        for (const font of updatedPresentation.manifest.fonts) {
+          const sourcePath = pendingFonts.get(font.id);
+          if (sourcePath) {
+            fontRefs.push({
+              id: font.id,
+              source_path: sourcePath,
+              bundle_path: font.path,
+            });
+          } else if (filePath && savePath === filePath) {
+            fontRefs.push({
+              id: font.id,
+              source_path: `bundle:${font.path}`,
+              bundle_path: font.path,
+            });
+          }
+        }
+
+        await saveBundle(savePath, updatedPresentation, mediaRefs, fontRefs);
 
         set((state) => {
           state.presentation = updatedPresentation;
           state.filePath = savePath;
           state.isDirty = false;
           state.pendingMedia = new Map(); // Clear pending after save
+          state.pendingFonts = new Map();
           state.autoSave = {
             status: 'saved',
             lastSaved: new Date().toISOString(),
@@ -403,6 +451,7 @@ export const useEditorStore = create<EditorState>()(
         state.undoStack = [];
         state.redoStack = [];
         state.pendingMedia = new Map();
+        state.pendingFonts = new Map();
         state.autoSave = {
           status: 'idle',
           lastSaved: null,
@@ -1022,6 +1071,52 @@ export const useEditorStore = create<EditorState>()(
       });
     },
 
+    ensureFontFamilyBundled: async (family: string, systemFonts: SystemFontInfo[]) => {
+      const { presentation, pendingFonts, filePath } = get();
+      if (!presentation) return;
+
+      const existingFonts = Array.isArray(presentation.manifest.fonts)
+        ? presentation.manifest.fonts
+        : [];
+      if (existingFonts.some((font) => font.family === family)) return;
+
+      const matchingFonts = systemFonts.filter((font) => font.family === family);
+      if (matchingFonts.length === 0) return;
+
+      const uniquePaths = Array.from(new Set(matchingFonts.map((font) => font.path)));
+      const entries = await importFontFiles(uniquePaths);
+
+      const existingHashes = new Set(existingFonts.map((font) => font.sha256));
+      const nextEntries = entries.filter((entry) => !existingHashes.has(entry.sha256));
+      if (nextEntries.length === 0) return;
+
+      const sourceById = new Map<string, string>();
+      entries.forEach((entry, index) => {
+        const sourcePath = uniquePaths[index];
+        if (sourcePath) sourceById.set(entry.id, sourcePath);
+      });
+
+      set((state) => {
+        if (!state.presentation) return;
+
+        state.presentation.manifest.fonts = [
+          ...(state.presentation.manifest.fonts ?? []),
+          ...nextEntries,
+        ];
+
+        for (const entry of nextEntries) {
+          const sourcePath = sourceById.get(entry.id);
+          if (sourcePath) {
+            state.pendingFonts.set(entry.id, sourcePath);
+          } else if (filePath) {
+            state.pendingFonts.set(entry.id, `bundle:${entry.path}`);
+          }
+        }
+
+        state.isDirty = true;
+      });
+    },
+
     undo: () => {
       const { undoStack, presentation } = get();
       if (undoStack.length === 0 || !presentation) return;
@@ -1140,6 +1235,7 @@ export const useEditorStore = create<EditorState>()(
         state.filePath = filePath;
         state.isDirty = false;
         state.pendingMedia = new Map();
+        state.pendingFonts = new Map();
         state.autoSave.status = 'saved';
         state.autoSave.lastSaved = new Date().toISOString();
         state.autoSave.lastError = null;

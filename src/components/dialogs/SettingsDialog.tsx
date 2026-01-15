@@ -35,7 +35,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { TabsContent } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { VerticalTabs, type VerticalTabItem } from '@/components/ui/vertical-tabs';
+import { VerticalTabs, type VerticalTabItem } from '@/components/tabs';
 import {
   useCatalogStore,
   useEditorStore,

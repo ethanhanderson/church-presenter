@@ -1,6 +1,9 @@
 //! Tauri commands for the Church Presenter app
 
-use crate::cpres::{self, BundleState, MediaEntry, ParsedBundle};
+use crate::cpres::{self, BundleState, FontEntry, MediaEntry, ParsedBundle};
+use font_kit::handle::Handle;
+use font_kit::properties::Style;
+use font_kit::source::SystemSource;
 use std::path::{Path, PathBuf};
 use tauri::{path::BaseDirectory, Manager};
 use tauri_plugin_fs::FsExt;
@@ -37,6 +40,69 @@ pub async fn cpres_read_media(bundle_path: String, media_path: String) -> Result
 pub async fn cpres_import_media(paths: Vec<String>) -> Result<Vec<MediaEntry>, String> {
     let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
     cpres::import_media_files(&paths).map_err(|e| e.to_string())
+}
+
+/// Import font files and compute their metadata/hashes
+#[tauri::command]
+pub async fn cpres_import_fonts(paths: Vec<String>) -> Result<Vec<FontEntry>, String> {
+    let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+    cpres::import_font_files(&paths).map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+pub struct SystemFontInfo {
+    pub family: String,
+    pub full_name: String,
+    pub postscript_name: Option<String>,
+    pub path: String,
+    pub weight: u16,
+    pub style: String,
+}
+
+/// List installed system fonts with metadata and file paths
+#[tauri::command]
+pub async fn cpres_list_system_fonts() -> Result<Vec<SystemFontInfo>, String> {
+    let source = SystemSource::new();
+    let handles = source
+        .all_fonts()
+        .map_err(|e| format!("Failed to list fonts: {e}"))?;
+
+    let mut fonts = Vec::new();
+    for handle in handles {
+        let path = match &handle {
+            Handle::Path { path, .. } => path,
+            _ => continue,
+        };
+
+        let font = match handle.load() {
+            Ok(font) => font,
+            Err(_) => continue,
+        };
+
+        let properties = font.properties();
+        let style = match properties.style {
+            Style::Italic | Style::Oblique => "italic",
+            _ => "normal",
+        }
+        .to_string();
+
+        fonts.push(SystemFontInfo {
+            family: font.family_name(),
+            full_name: font.full_name(),
+            postscript_name: font.postscript_name(),
+            path: path.to_string_lossy().to_string(),
+            weight: properties.weight.0 as u16,
+            style,
+        });
+    }
+
+    fonts.sort_by(|a, b| {
+        a.family
+            .cmp(&b.family)
+            .then_with(|| a.full_name.cmp(&b.full_name))
+    });
+
+    Ok(fonts)
 }
 
 const DOCUMENTS_APP_DIR_NAME: &str = "Church Presenter";

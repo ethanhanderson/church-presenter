@@ -15,10 +15,13 @@ import {
   Trash2,
   Play,
   Settings2,
+  Check,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -35,6 +38,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   ControlField,
@@ -42,6 +53,7 @@ import {
   ScrubbableNumberInput,
 } from '@/components/editor/inspector-controls';
 import { useEditorStore } from '@/lib/stores';
+import { useSystemFonts } from '@/hooks';
 import type {
   Slide,
   Theme,
@@ -988,27 +1000,86 @@ interface TextStyleEditorProps {
 }
 
 function TextStyleEditor({ style, onChange }: TextStyleEditorProps) {
+  const { presentation, ensureFontFamilyBundled } = useEditorStore();
+  const { fonts: systemFonts, isLoading: isFontsLoading } = useSystemFonts();
+  const [fontPickerOpen, setFontPickerOpen] = useState(false);
+
+  const fontFamily = style?.font?.family || 'Inter';
+  const availableFonts = useMemo(() => {
+    const families = new Set(systemFonts.map((font) => font.family));
+    return Array.from(families).sort((a, b) => a.localeCompare(b));
+  }, [systemFonts]);
+
+  const bundledFamilies = useMemo(() => {
+    if (!presentation?.manifest?.fonts?.length) return new Set<string>();
+    return new Set(presentation.manifest.fonts.map((font) => font.family));
+  }, [presentation?.manifest?.fonts]);
+
+  const bundleCandidates = useMemo(
+    () => systemFonts.filter((font) => font.path),
+    [systemFonts]
+  );
+
+  const handleFontSelect = (family: string) => {
+    onChange({ ...style, font: { ...style?.font!, family } });
+    if (bundleCandidates.length > 0) {
+      void ensureFontFamilyBundled(family, bundleCandidates);
+    }
+    setFontPickerOpen(false);
+  };
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
         <Label className="text-xs">Font Family</Label>
-        <Select
-          value={style?.font?.family || 'Inter'}
-          onValueChange={(v) =>
-            onChange({ ...style, font: { ...style?.font!, family: v } })
-          }
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Inter">Inter</SelectItem>
-            <SelectItem value="Arial">Arial</SelectItem>
-            <SelectItem value="Georgia">Georgia</SelectItem>
-            <SelectItem value="Times New Roman">Times New Roman</SelectItem>
-            <SelectItem value="Courier New">Courier New</SelectItem>
-          </SelectContent>
-        </Select>
+        <Popover open={fontPickerOpen} onOpenChange={setFontPickerOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="w-full justify-between">
+              <span className="truncate text-left" style={{ fontFamily }}>
+                {fontFamily}
+              </span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[260px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search fonts..." />
+              <CommandList>
+                {isFontsLoading ? (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">Loading fonts...</div>
+                ) : (
+                  <>
+                    <CommandEmpty>No fonts found.</CommandEmpty>
+                    <CommandGroup>
+                      {availableFonts.map((family) => (
+                        <CommandItem
+                          key={family}
+                          value={family}
+                          onSelect={() => handleFontSelect(family)}
+                        >
+                          <Check
+                            className={cn(
+                              'h-4 w-4',
+                              fontFamily === family ? 'opacity-100' : 'opacity-0'
+                            )}
+                          />
+                          <span className="flex-1 truncate" style={{ fontFamily: family }}>
+                            {family}
+                          </span>
+                          {bundledFamilies.has(family) && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Bundled
+                            </Badge>
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </>
+                )}
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <ControlField label="Font Size">

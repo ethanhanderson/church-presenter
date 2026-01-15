@@ -2,8 +2,8 @@
  * ReflowPage - slide text overview and previews
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import type { ImperativePanelHandle } from 'react-resizable-panels';
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { usePanelRef, type PanelSize } from 'react-resizable-panels';
 import {
   ResizableHandle,
   ResizablePanel,
@@ -52,9 +52,11 @@ export function ReflowPage({
   onOpenPresentation,
   onRemoveFromLibrary,
 }: ReflowPageProps) {
-  const leftSidebarRef = useRef<ImperativePanelHandle>(null);
+  const leftSidebarRef = usePanelRef();
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
   const { presentation, setSlideSection, updateSlide, applyTheme } = useEditorStore();
+
+  const LEFT_COLLAPSED_SIZE = 3;
   const { settings } = useSettingsStore();
   const [selectedSlideIds, setSelectedSlideIds] = useState<string[]>([]);
   const [anchorSlideId, setAnchorSlideId] = useState<string | null>(null);
@@ -84,10 +86,17 @@ export function ReflowPage({
     if (!panel) return;
     if (panel.isCollapsed()) {
       panel.expand();
+      setIsLeftSidebarCollapsed(false);
     } else {
       panel.collapse();
+      setIsLeftSidebarCollapsed(true);
     }
   };
+
+  const handleLeftPanelResize = useCallback((size: PanelSize) => {
+    // Detect collapse when panel is dragged to collapsed size
+    setIsLeftSidebarCollapsed(size.asPercentage <= LEFT_COLLAPSED_SIZE + 0.5);
+  }, []);
 
   const densityClass =
     settings.reflow.previewDensity === 'compact' ? 'gap-2' : 'gap-4';
@@ -167,10 +176,9 @@ export function ReflowPage({
         minSize={15}
         maxSize={35}
         collapsible
-        collapsedSize={3}
-        ref={leftSidebarRef}
-        onCollapse={() => setIsLeftSidebarCollapsed(true)}
-        onExpand={() => setIsLeftSidebarCollapsed(false)}
+        collapsedSize={LEFT_COLLAPSED_SIZE}
+        panelRef={leftSidebarRef}
+        onResize={handleLeftPanelResize}
       >
         <AppSidebar
           mode="edit"

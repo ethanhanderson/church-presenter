@@ -6,7 +6,10 @@
 //! - arrangement.json: Slide ordering and section groups
 //! - themes/*.json: Embedded themes
 //! - media/*: Media files (images, videos, audio)
+//! - fonts/*: Embedded font files
 
+use font_kit::handle::Handle;
+use font_kit::properties::Style;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File};
@@ -71,6 +74,21 @@ pub struct MediaEntry {
     pub media_type: String,
 }
 
+/// Font entry computed during import
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FontEntry {
+    pub id: String,
+    pub family: String,
+    pub full_name: String,
+    pub postscript_name: Option<String>,
+    pub path: String,
+    pub mime: String,
+    pub sha256: String,
+    pub byte_size: u64,
+    pub weight: u16,
+    pub style: String,
+}
+
 /// Bundle state for saving - contains raw JSON strings from frontend
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BundleState {
@@ -79,6 +97,7 @@ pub struct BundleState {
     pub arrangement: String,
     pub themes: Vec<ThemeFile>,
     pub media: Vec<MediaFileRef>,
+    pub fonts: Vec<FontFileRef>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -86,6 +105,13 @@ pub struct MediaFileRef {
     pub id: String,
     pub source_path: String, // Absolute path to source file or "bundle:<path>" for existing
     pub bundle_path: String, // Path within the bundle (e.g., "media/abc123.jpg")
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FontFileRef {
+    pub id: String,
+    pub source_path: String, // Absolute path to source file or "bundle:<path>" for existing
+    pub bundle_path: String, // Path within the bundle (e.g., "fonts/abc123.ttf")
 }
 
 /// Open and parse a .cpres bundle
@@ -169,16 +195,35 @@ pub fn save_bundle(path: &Path, state: &BundleState) -> Result<(), CpresError> {
 
     // Write media files
     for media_ref in &state.media {
-        let source_data = if media_ref.source_path.starts_with("bundle:") {
-            // Media is from an existing bundle - we need to handle this case
-            // For now, skip - this would require keeping the original bundle open
-            continue;
+        let source_data = if let Some(bundle_path) = media_ref.source_path.strip_prefix("bundle:") {
+            if path.exists() {
+                read_bundle_media(path, bundle_path)?
+            } else {
+                continue;
+            }
         } else {
             // Read from source file
             fs::read(&media_ref.source_path)?
         };
 
         zip.start_file(&media_ref.bundle_path, options)?;
+        zip.write_all(&source_data)?;
+    }
+
+    // Write font files
+    for font_ref in &state.fonts {
+        let source_data = if let Some(bundle_path) = font_ref.source_path.strip_prefix("bundle:") {
+            if path.exists() {
+                read_bundle_media(path, bundle_path)?
+            } else {
+                continue;
+            }
+        } else {
+            // Read from source file
+            fs::read(&font_ref.source_path)?
+        };
+
+        zip.start_file(&font_ref.bundle_path, options)?;
         zip.write_all(&source_data)?;
     }
 
@@ -270,6 +315,73 @@ pub fn import_media_files(paths: &[PathBuf]) -> Result<Vec<MediaEntry>, CpresErr
             sha256,
             byte_size,
             media_type,
+        });
+    }
+
+    Ok(entries)
+}
+
+/// Import font files and compute their metadata/hashes
+pub fn import_font_files(paths: &[PathBuf]) -> Result<Vec<FontEntry>, CpresError> {
+    let mut entries = Vec::new();
+
+    for path in paths {
+        let id = uuid::Uuid::new_v4().to_string();
+        let extension = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        let mime = match extension.as_str() {
+            "ttf" => "font/ttf",
+            "otf" => "font/otf",
+            "woff" => "font/woff",
+            "woff2" => "font/woff2",
+            _ => "application/octet-stream",
+        }
+        .to_string();
+
+        let data = fs::read(path)?;
+        let byte_size = data.len() as u64;
+
+        let mut hasher = Sha256::new();
+        hasher.update(&data);
+        let sha256 = hex::encode(hasher.finalize());
+
+        let bundle_path = if extension.is_empty() {
+            format!("fonts/{}", &id[..8])
+        } else {
+            format!("fonts/{}.{}", &id[..8], extension)
+        };
+
+        let handle = Handle::Path {
+            path: path.to_path_buf(),
+            font_index: 0,
+        };
+
+        let font = handle
+            .load()
+            .map_err(|e| CpresError::InvalidBundle(format!("Failed to load font: {e}")))?;
+
+        let properties = font.properties();
+        let style = match properties.style {
+            Style::Italic | Style::Oblique => "italic",
+            _ => "normal",
+        }
+        .to_string();
+
+        entries.push(FontEntry {
+            id,
+            family: font.family_name(),
+            full_name: font.full_name(),
+            postscript_name: font.postscript_name(),
+            path: bundle_path,
+            mime,
+            sha256,
+            byte_size,
+            weight: properties.weight.0 as u16,
+            style,
         });
     }
 

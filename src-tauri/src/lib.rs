@@ -59,6 +59,8 @@ pub fn run() {
             cpres_save,
             cpres_read_media,
             cpres_import_media,
+            cpres_import_fonts,
+            cpres_list_system_fonts,
             get_app_data_dir,
             get_documents_data_dir,
             set_content_dir,

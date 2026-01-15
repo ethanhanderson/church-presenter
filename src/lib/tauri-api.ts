@@ -3,7 +3,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { Presentation, MediaEntry } from './models';
+import type { Presentation, MediaEntry, FontEntry } from './models';
 
 // ============================================================================
 // Types from Rust
@@ -27,12 +27,28 @@ export interface BundleState {
   arrangement: string;
   themes: ThemeFile[];
   media: MediaFileRef[];
+  fonts: FontFileRef[];
 }
 
 export interface MediaFileRef {
   id: string;
   source_path: string;
   bundle_path: string;
+}
+
+export interface FontFileRef {
+  id: string;
+  source_path: string;
+  bundle_path: string;
+}
+
+export interface SystemFontInfo {
+  family: string;
+  full_name: string;
+  postscript_name?: string | null;
+  path: string;
+  weight: number;
+  style: 'normal' | 'italic';
 }
 
 export interface MonitorInfo {
@@ -75,7 +91,8 @@ export async function openBundle(path: string): Promise<Presentation> {
 export async function saveBundle(
   path: string,
   presentation: Presentation,
-  mediaRefs: MediaFileRef[] = []
+  mediaRefs: MediaFileRef[] = [],
+  fontRefs: FontFileRef[] = []
 ): Promise<void> {
   const state: BundleState = {
     manifest: JSON.stringify(presentation.manifest, null, 2),
@@ -86,6 +103,7 @@ export async function saveBundle(
       content: JSON.stringify(theme, null, 2),
     })),
     media: mediaRefs,
+    fonts: fontRefs,
   };
 
   await invoke('cpres_save', { path, state });
@@ -122,6 +140,44 @@ export async function importMediaFiles(paths: string[]): Promise<MediaEntry[]> {
     byteSize: e.byte_size,
     type: e.media_type as MediaEntry['type'],
   }));
+}
+
+/**
+ * Import font files and compute their metadata
+ */
+export async function importFontFiles(paths: string[]): Promise<FontEntry[]> {
+  const entries = await invoke<Array<{
+    id: string;
+    family: string;
+    full_name: string;
+    postscript_name?: string | null;
+    path: string;
+    mime: string;
+    sha256: string;
+    byte_size: number;
+    weight: number;
+    style: 'normal' | 'italic';
+  }>>('cpres_import_fonts', { paths });
+
+  return entries.map(entry => ({
+    id: entry.id,
+    family: entry.family,
+    fullName: entry.full_name,
+    postscriptName: entry.postscript_name ?? null,
+    path: entry.path,
+    mime: entry.mime,
+    sha256: entry.sha256,
+    byteSize: entry.byte_size,
+    weight: entry.weight,
+    style: entry.style,
+  }));
+}
+
+/**
+ * List system-installed fonts
+ */
+export async function listSystemFonts(): Promise<SystemFontInfo[]> {
+  return invoke<SystemFontInfo[]>('cpres_list_system_fonts');
 }
 
 // ============================================================================

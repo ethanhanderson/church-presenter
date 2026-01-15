@@ -2,8 +2,8 @@
  * ShowPage - presentation playback and playlist view
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ImperativePanelHandle } from 'react-resizable-panels';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { usePanelRef, type PanelSize } from 'react-resizable-panels';
 import {
   ResizableHandle,
   ResizablePanel,
@@ -67,18 +67,23 @@ export function ShowPage({
   onImportSets,
   onOpenOutputSettings,
 }: ShowPageProps) {
-  const leftSidebarRef = useRef<ImperativePanelHandle>(null);
-  const rightSidebarRef = useRef<ImperativePanelHandle>(null);
+  const leftSidebarRef = usePanelRef();
+  const rightSidebarRef = usePanelRef();
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
   const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
+
+  const LEFT_COLLAPSED_SIZE = 3;
+  const RIGHT_COLLAPSED_SIZE = 3;
 
   const handleToggleLeftSidebar = () => {
     const panel = leftSidebarRef.current;
     if (!panel) return;
     if (panel.isCollapsed()) {
       panel.expand();
+      setIsLeftSidebarCollapsed(false);
     } else {
       panel.collapse();
+      setIsLeftSidebarCollapsed(true);
     }
   };
 
@@ -87,10 +92,22 @@ export function ShowPage({
     if (!panel) return;
     if (panel.isCollapsed()) {
       panel.expand();
+      setIsRightSidebarCollapsed(false);
     } else {
       panel.collapse();
+      setIsRightSidebarCollapsed(true);
     }
   };
+
+  const handleLeftPanelResize = useCallback((size: PanelSize) => {
+    // Detect collapse when panel is dragged to collapsed size
+    setIsLeftSidebarCollapsed(size.asPercentage <= LEFT_COLLAPSED_SIZE + 0.5);
+  }, []);
+
+  const handleRightPanelResize = useCallback((size: PanelSize) => {
+    // Detect collapse when panel is dragged to collapsed size
+    setIsRightSidebarCollapsed(size.asPercentage <= RIGHT_COLLAPSED_SIZE + 0.5);
+  }, []);
 
   return (
     <ResizablePanelGroup direction="horizontal" className="flex-1">
@@ -99,10 +116,9 @@ export function ShowPage({
         minSize={15}
         maxSize={35}
         collapsible
-        collapsedSize={3}
-        ref={leftSidebarRef}
-        onCollapse={() => setIsLeftSidebarCollapsed(true)}
-        onExpand={() => setIsLeftSidebarCollapsed(false)}
+        collapsedSize={LEFT_COLLAPSED_SIZE}
+        panelRef={leftSidebarRef}
+        onResize={handleLeftPanelResize}
       >
         <AppSidebar
           mode="show"
@@ -147,10 +163,9 @@ export function ShowPage({
         minSize={22}
         maxSize={40}
         collapsible
-        collapsedSize={3}
-        ref={rightSidebarRef}
-        onCollapse={() => setIsRightSidebarCollapsed(true)}
-        onExpand={() => setIsRightSidebarCollapsed(false)}
+        collapsedSize={RIGHT_COLLAPSED_SIZE}
+        panelRef={rightSidebarRef}
+        onResize={handleRightPanelResize}
       >
         <RightPanel
           onOpenOutputSettings={onOpenOutputSettings}

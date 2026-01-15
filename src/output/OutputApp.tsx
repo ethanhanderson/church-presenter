@@ -9,9 +9,11 @@ import { emit } from '@tauri-apps/api/event';
 import { AnimatedSlideStage } from '@/components/preview/AnimatedSlideStage';
 import type { Presentation, Slide, Theme } from '@/lib/models';
 import type { LivePresentationEvent, LiveStateEvent } from '@/lib/stores/liveStore';
+import { loadBundledFonts } from '@/lib/services/fontService';
 
 export function OutputApp() {
   const [presentation, setPresentation] = useState<Presentation | null>(null);
+  const [presentationPath, setPresentationPath] = useState<string | null>(null);
   const [currentSlide, setCurrentSlide] = useState<Slide | null>(null);
   const [theme, setTheme] = useState<Theme | null>(null);
   const [isBlackout, setIsBlackout] = useState(false);
@@ -44,6 +46,28 @@ export function OutputApp() {
     };
   }, [isTauriApp]);
 
+  useEffect(() => {
+    if (!isTauriApp) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      const key = event.key;
+      if (key === 'ArrowRight' || key === 'ArrowDown' || key === 'PageDown' || key === ' ' || key === 'Enter') {
+        event.preventDefault();
+        emit('live:next');
+        return;
+      }
+      if (key === 'ArrowLeft' || key === 'ArrowUp' || key === 'PageUp' || key === 'Backspace') {
+        event.preventDefault();
+        emit('live:previous');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isTauriApp]);
+
   const effectiveVisibleLayerIds = useMemo(() => {
     if (!currentSlide) return undefined;
     const hasAdvanceBuilds = currentSlide.animations?.buildIn?.some(
@@ -63,6 +87,7 @@ export function OutputApp() {
       (event) => {
         const { presentation, slideId } = event.payload;
         setPresentation(presentation);
+        setPresentationPath(event.payload.presentationPath ?? null);
 
         if (!presentation || !slideId) {
           setCurrentSlide(null);
@@ -84,6 +109,10 @@ export function OutputApp() {
       unlisten.then((fn) => fn());
     };
   }, [isTauriApp]);
+
+  useEffect(() => {
+    void loadBundledFonts(presentation, presentationPath);
+  }, [presentation, presentationPath]);
 
   // Listen for slide changes
   useEffect(() => {

@@ -2,8 +2,8 @@
  * EditPage - presentation editing workspace
  */
 
-import { useEffect, useRef, useState } from 'react';
-import type { ImperativePanelHandle } from 'react-resizable-panels';
+import { useEffect, useState, useCallback } from 'react';
+import { usePanelRef, type PanelSize } from 'react-resizable-panels';
 import {
   ResizableHandle,
   ResizablePanel,
@@ -44,19 +44,28 @@ export function EditPage({
   onOpenPresentationDialog,
   onLinkPresentation,
 }: EditPageProps) {
-  const leftSidebarRef = useRef<ImperativePanelHandle>(null);
+  const leftSidebarRef = usePanelRef();
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
   const { presentation, selectSlide } = useEditorStore();
+
+  const LEFT_COLLAPSED_SIZE = 3;
 
   const handleToggleLeftSidebar = () => {
     const panel = leftSidebarRef.current;
     if (!panel) return;
     if (panel.isCollapsed()) {
       panel.expand();
+      setIsLeftSidebarCollapsed(false);
     } else {
       panel.collapse();
+      setIsLeftSidebarCollapsed(true);
     }
   };
+
+  const handleLeftPanelResize = useCallback((size: PanelSize) => {
+    // Detect collapse when panel is dragged to collapsed size
+    setIsLeftSidebarCollapsed(size.asPercentage <= LEFT_COLLAPSED_SIZE + 0.5);
+  }, []);
 
   useEffect(() => {
     if (!presentation) return;
@@ -70,10 +79,9 @@ export function EditPage({
         minSize={15}
         maxSize={35}
         collapsible
-        collapsedSize={3}
-        ref={leftSidebarRef}
-        onCollapse={() => setIsLeftSidebarCollapsed(true)}
-        onExpand={() => setIsLeftSidebarCollapsed(false)}
+        collapsedSize={LEFT_COLLAPSED_SIZE}
+        panelRef={leftSidebarRef}
+        onResize={handleLeftPanelResize}
       >
         <AppSidebar
           mode="edit"

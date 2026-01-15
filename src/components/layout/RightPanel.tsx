@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AnimatedSlideStage } from '@/components/preview/AnimatedSlideStage';
 import { Switch } from '@/components/ui/switch';
+import { useMemo } from 'react';
 import { useLiveStore, useEditorStore, useSettingsStore, useShowStore } from '@/lib/stores';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -15,7 +16,7 @@ interface RightPanelProps {
   onToggleCollapse: () => void;
 }
 
-export function RightPanel({ onOpenOutputSettings, collapsed, onToggleCollapse }: RightPanelProps) {
+export function RightPanel({ onOpenOutputSettings: _onOpenOutputSettings, collapsed, onToggleCollapse }: RightPanelProps) {
   const { presentation } = useEditorStore();
   const { selectedSlideId } = useShowStore();
   const { settings, updateSettings } = useSettingsStore();
@@ -38,6 +39,17 @@ export function RightPanel({ onOpenOutputSettings, collapsed, onToggleCollapse }
   const previewVisibleLayerIds = isAudienceLive ? visibleLayerIds : undefined;
   const previewBlackout = isAudienceLive ? isBlackout : false;
   const previewClear = isAudienceLive ? isClear : false;
+  const previewRenderScale = 0.5;
+  const effectiveVisibleLayerIds = useMemo(() => {
+    if (!previewSlide) return undefined;
+    const hasAdvanceBuilds = previewSlide.animations?.buildIn?.some(
+      (step) => step.trigger === 'onAdvance'
+    );
+    if (!hasAdvanceBuilds && (!previewVisibleLayerIds || previewVisibleLayerIds.length === 0)) {
+      return undefined;
+    }
+    return previewVisibleLayerIds;
+  }, [previewSlide, previewVisibleLayerIds]);
 
   if (collapsed) {
     return (
@@ -68,14 +80,13 @@ export function RightPanel({ onOpenOutputSettings, collapsed, onToggleCollapse }
       <div className="flex h-14 items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-3">
           <Switch
-            size="lg"
             checked={settings.output.audienceEnabled}
             onCheckedChange={(checked) =>
               updateSettings({
                 output: { ...settings.output, audienceEnabled: checked },
               })
             }
-            className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500"
+            className="h-6 w-10 p-1 data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500"
           />
           <span className="text-sm font-semibold">Audience</span>
         </div>
@@ -98,14 +109,25 @@ export function RightPanel({ onOpenOutputSettings, collapsed, onToggleCollapse }
 
       <div className="flex-1 p-3">
         <div className="rounded-md overflow-hidden border bg-muted slide-aspect">
-          <AnimatedSlideStage
-            slide={previewSlide}
-            theme={theme}
-            isBlackout={previewBlackout}
-            isClear={previewClear}
-            visibleLayerIds={previewVisibleLayerIds}
-            className="w-full h-full"
-          />
+          <div className="h-full w-full">
+            <div
+              className="origin-top-left"
+              style={{
+                width: `${previewRenderScale * 100}%`,
+                height: `${previewRenderScale * 100}%`,
+                transform: `scale(${1 / previewRenderScale})`,
+              }}
+            >
+              <AnimatedSlideStage
+                slide={previewSlide}
+                theme={theme}
+                isBlackout={previewBlackout}
+                isClear={previewClear}
+                visibleLayerIds={effectiveVisibleLayerIds}
+                className="w-full h-full"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
