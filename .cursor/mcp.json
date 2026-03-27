@@ -5,6 +5,13 @@
             "env": {},
             "args": []
         },
+        "shadcn": {
+            "command": "npx",
+            "args": [
+                "shadcn@latest",
+                "mcp"
+            ]
+        },
         "supabase": {
             "url": "https://mcp.supabase.com/mcp"
         }

@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "ChurchPresenter (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "ChurchPresenter (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
