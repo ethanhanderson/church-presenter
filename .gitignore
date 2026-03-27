@@ -25,3 +25,8 @@ dist-ssr
 
 # Visual Studio
 .vs/
+
+# .NET / Visual Studio build output
+**/bin/
+**/obj/
+**/*.csproj.user
