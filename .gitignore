@@ -30,3 +30,14 @@ dist-ssr
 **/bin/
 **/obj/
 **/*.csproj.user
+*.binlog
+
+# Local scratch / temp
+.tmp/
+*.binlog
+
+# Local scratch / temp
+.tmp/
+
+# Rust / Tauri (create-tauri-app layout: lockfile + target under src-tauri)
+legacy/tauri_old/src-tauri/target

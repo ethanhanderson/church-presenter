@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="ChurchPresenter.Views.ArrangementsDialogContent"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="using:ChurchPresenter.Views"
+    xmlns:converters="using:ChurchPresenter.Converters"
+    x:Name="Root"
+    mc:Ignorable="d"
+    MinWidth="300"
+    MaxWidth="420">
+
+    <UserControl.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    </UserControl.Resources>
+
+    <!-- Stack layout prevents collapsed rows from leaving stray spacing in the empty state. -->
+    <StackPanel Spacing="12">
+
+        <Grid
+            x:Name="PickerRow"
+            ColumnDefinitions="*,Auto"
+            ColumnSpacing="8"
+            VerticalAlignment="Center">
+            <ComboBox
+                x:Name="ArrangementCombo"
+                Grid.Column="0"
+                MinHeight="32"
+                Padding="10,4,8,4"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Center"
+                PlaceholderText="Select arrangement"
+                DisplayMemberPath="DisplayName"
+                SelectionChanged="ArrangementCombo_SelectionChanged" />
+            <Button
+                Grid.Column="1"
+                x:Name="NewArrangementButton"
+                Width="32"
+                Height="32"
+                MinWidth="32"
+                MinHeight="32"
+                Padding="0"
+                VerticalAlignment="Center"
+                Style="{ThemeResource DefaultButtonStyle}"
+                AutomationProperties.Name="New arrangement"
+                Click="NewArrangementButton_Click"
+                ToolTipService.ToolTip="Create a new arrangement (starts from Master order)">
+                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Glyph="&#xE710;" />
+            </Button>
+        </Grid>
+
+        <Border
+            x:Name="EmptyStatePanel"
+            Padding="16,8,16,16"
+            HorizontalAlignment="Stretch"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            Visibility="Collapsed">
+            <StackPanel
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="16"
+                MaxWidth="320">
+                <FontIcon
+                    HorizontalAlignment="Center"
+                    FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                    FontSize="40"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Glyph="&#xE8FD;" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="14"
+                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                    Text="No custom arrangements yet"
+                    TextAlignment="Center"
+                    TextWrapping="WrapWholeWords" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="12"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="Create a named arrangement to reorder or repeat section groups for this show."
+                    TextAlignment="Center"
+                    TextWrapping="WrapWholeWords" />
+                <Button
+                    x:Name="EmptyStateCreateButton"
+                    HorizontalAlignment="Center"
+                    MinWidth="200"
+                    Style="{ThemeResource AccentButtonStyle}"
+                    Click="EmptyStateCreateButton_Click"
+                    Content="Create arrangement" />
+            </StackPanel>
+        </Border>
+
+        <Border
+            x:Name="PaletteBorder"
+            Padding="6"
+            HorizontalAlignment="Stretch"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+            <ScrollViewer
+                Padding="0"
+                HorizontalScrollBarVisibility="Auto"
+                VerticalScrollBarVisibility="Disabled"
+                VerticalContentAlignment="Center">
+                <ItemsControl x:Name="PaletteItemsControl">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="6" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="local:ArrangementPaletteEntry">
+                            <Border
+                                Padding="10,5"
+                                HorizontalAlignment="Left"
+                                CornerRadius="4"
+                                Background="{x:Bind BackgroundBrush, Mode=OneTime}"
+                                CanDrag="{x:Bind CanDrag, Mode=OneTime}"
+                                DragStarting="PaletteChip_DragStarting"
+                                Tag="{x:Bind SectionGroupId, Mode=OneTime}">
+                                <TextBlock
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Foreground="{x:Bind ForegroundBrush, Mode=OneTime}"
+                                    IsHitTestVisible="False"
+                                    Text="{x:Bind Label, Mode=OneTime}"
+                                    TextTrimming="None" />
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <Border
+            x:Name="OrderListBorder"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            MinHeight="160"
+            MaxHeight="320"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+            <ListView
+                x:Name="GroupsListView"
+                Padding="6"
+                IsItemClickEnabled="False"
+                SelectionMode="None"
+                DragItemsCompleted="GroupsListView_DragItemsCompleted">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0,0,0,6" />
+                        <Setter Property="MinHeight" Value="0" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="local:ArrangementGroupEntry">
+                        <Border
+                            Padding="10,8"
+                            HorizontalAlignment="Stretch"
+                            Background="{x:Bind BackgroundBrush, Mode=OneTime}"
+                            CornerRadius="6">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                                <FontIcon
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                    FontSize="14"
+                                    Foreground="{x:Bind ForegroundBrush, Mode=OneTime}"
+                                    Glyph="&#xE784;"
+                                    Opacity="0.85"
+                                    Visibility="{x:Bind IsReorderLocked, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert, Mode=OneTime}" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    FontSize="14"
+                                    FontWeight="SemiBold"
+                                    Foreground="{x:Bind ForegroundBrush, Mode=OneTime}"
+                                    Text="{x:Bind Label, Mode=OneTime}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="NoWrap" />
+                                <Button
+                                    Grid.Column="2"
+                                    Width="32"
+                                    Height="32"
+                                    Padding="0"
+                                    VerticalAlignment="Center"
+                                    Style="{ThemeResource SubtleButtonStyle}"
+                                    AutomationProperties.Name="Remove group from arrangement"
+                                    Click="RemoveGroupRow_Click"
+                                    ToolTipService.ToolTip="Remove this group from the arrangement"
+                                    Visibility="{x:Bind IsReorderLocked, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert, Mode=OneTime}">
+                                    <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="14" Glyph="&#xE74D;" />
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Border>
+
+        <Grid x:Name="FooterRow" ColumnDefinitions="Auto,*">
+            <Button
+                x:Name="RemoveArrangementButton"
+                Grid.Column="0"
+                Padding="10,6"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center"
+                Style="{ThemeResource SubtleButtonStyle}"
+                Click="RemoveArrangementButton_Click"
+                Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon
+                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                        FontSize="14"
+                        Glyph="&#xE74D;" />
+                    <TextBlock Text="Remove arrangement" />
+                </StackPanel>
+            </Button>
+        </Grid>
+    </StackPanel>
+</UserControl>

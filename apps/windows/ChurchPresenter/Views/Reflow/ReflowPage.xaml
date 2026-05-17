@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="ChurchPresenter.Views.ReflowPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:ChurchPresenter.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:models="using:ChurchPresenter.ViewModels"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    x:Name="RootPage"
+    mc:Ignorable="d"
+    Background="Transparent">
+    <Grid Padding="24" ColumnSpacing="16" ColumnDefinitions="360,*,320">
+        <Grid
+            Grid.Column="0"
+            Background="{ThemeResource LayerFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Spacing="4">
+                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Reflow" />
+                <TextBlock
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{x:Bind ViewModel.Hint, Mode=OneWay}"
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{x:Bind ViewModel.CurrentPath, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+
+            <ListView
+                x:Name="SlidesList"
+                Grid.Row="1"
+                Margin="0,16,0,16"
+                IsItemClickEnabled="True"
+                ItemClick="SlidesList_ItemClick"
+                ItemsSource="{x:Bind ViewModel.Slides, Mode=OneWay}"
+                SelectionMode="Single">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="models:ReflowSlideItem">
+                        <StackPanel Margin="0,0,0,12" Spacing="4">
+                            <TextBlock FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Header, Mode=OneWay}" />
+                            <TextBlock
+                                FontSize="{Binding ViewModel.TextSize, ElementName=RootPage}"
+                                Text="{x:Bind BodyText, Mode=OneWay}"
+                                TextWrapping="WrapWholeWords" />
+                            <TextBlock
+                                FontSize="11"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{x:Bind SectionSummary, Mode=OneWay}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <StackPanel Grid.Row="2" Spacing="8">
+                <Button Command="{x:Bind ViewModel.SaveCommand, Mode=OneWay}" Content="Save Reflow Changes" />
+                <TextBlock
+                    FontSize="12"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+        </Grid>
+
+        <Grid
+            Grid.Column="1"
+            Background="{ThemeResource LayerFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="16"
+            RowDefinitions="Auto,*,Auto">
+            <StackPanel Spacing="4">
+                <TextBlock FontSize="22" FontWeight="SemiBold" Text="{x:Bind ViewModel.PresentationTitle, Mode=OneWay}" />
+                <TextBlock
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{x:Bind ViewModel.DensityLabel, Mode=OneWay}" />
+            </StackPanel>
+
+            <Border
+                Grid.Row="1"
+                Margin="0,16,0,16"
+                Background="Black"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+                <controls:SlideStageView
+                    MediaLayers="{x:Bind ViewModel.SelectedSlideMediaLayers, Mode=OneWay}"
+                    Margin="12"
+                    Project="{x:Bind ViewModel.ProjectPreview, Mode=OneWay}"
+                    RenderMode="Editor"
+                    ShowSafeArea="True"
+                    Slide="{x:Bind ViewModel.SelectedSlidePreview, Mode=OneWay}" />
+            </Border>
+
+            <StackPanel Grid.Row="2" Spacing="4">
+                <TextBlock FontWeight="SemiBold" Text="{x:Bind ViewModel.SelectedSlideHeader, Mode=OneWay}" />
+                <TextBlock
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{x:Bind ViewModel.SelectedSlideText, Mode=OneWay}"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+        </Grid>
+
+        <ScrollViewer
+            Grid.Column="2"
+            Background="{ThemeResource LayerFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+            <StackPanel Padding="16" Spacing="12">
+                <TextBlock FontSize="22" FontWeight="SemiBold" Text="Section Editor" />
+                <Border
+                    Padding="12"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                    <StackPanel Spacing="10">
+                        <TextBlock FontWeight="SemiBold" Text="Theme" />
+                        <ComboBox
+                            x:Name="PresentationThemePicker"
+                            Header="Theme"
+                            DisplayMemberPath="Name"
+                            ItemsSource="{x:Bind ViewModel.AvailableThemes, Mode=OneWay}"
+                            SelectedItem="{x:Bind ViewModel.PresentationTheme, Mode=OneWay}"
+                            SelectionChanged="PresentationThemePicker_SelectionChanged" />
+                        <ComboBox
+                            x:Name="SlideStylePicker"
+                            Header="Slide style"
+                            DisplayMemberPath="Name"
+                            ItemsSource="{x:Bind ViewModel.AvailableThemeSlides, Mode=OneWay}"
+                            SelectedItem="{x:Bind ViewModel.SelectedSlideStyle, Mode=OneWay}"
+                            SelectionChanged="SlideStylePicker_SelectionChanged" />
+                    </StackPanel>
+                </Border>
+                <ComboBox
+                    Header="Section"
+                    ItemsSource="{x:Bind ViewModel.SectionOptions, Mode=OneWay}"
+                    SelectedItem="{x:Bind ViewModel.SelectedSlideSection, Mode=TwoWay}" />
+                <TextBox
+                    Header="Notes"
+                    AcceptsReturn="True"
+                    MinHeight="120"
+                    Text="{x:Bind ViewModel.SelectedSlideNotes, Mode=TwoWay}"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

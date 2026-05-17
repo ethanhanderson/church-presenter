@@ -1,19 +1,22 @@
 {
-    "mcpServers": {
-        "motion": {
-            "command": "npx -y https://api.motion.dev/registry.tgz?package=motion-studio-mcp&version=latest",
-            "env": {},
-            "args": []
-        },
-        "shadcn": {
-            "command": "npx",
-            "args": [
-                "shadcn@latest",
-                "mcp"
-            ]
-        },
-        "supabase": {
-            "url": "https://mcp.supabase.com/mcp"
-        }
+  "mcpServers": {
+    "winapp": {
+      "command": "npx",
+      "args": ["-y", "winapp-mcp"]
+    },
+    "supabase": {
+      "url": "https://mcp.supabase.com/mcp"
+    },
+    "microsoft-learn": {
+      "url": "https://learn.microsoft.com/api/mcp"
+    },
+    "sosumi": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://sosumi.ai/mcp"
+      ]
     }
+  }
 }

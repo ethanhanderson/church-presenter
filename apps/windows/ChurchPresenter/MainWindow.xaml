@@ -3,17 +3,235 @@
     x:Class="ChurchPresenter.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:ChurchPresenter"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    Title="ChurchPresenter">
+    Title="Church Presenter">
 
+    <!-- Mica: recommended long-lived window backdrop (Fluent / Windows 11); see https://learn.microsoft.com/windows/apps/design/style/mica -->
     <Window.SystemBackdrop>
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid>
+    <Grid Background="{ThemeResource LayerFillColorDefaultBrush}" RowDefinitions="Auto,*">
+        <!-- WinUI TitleBar: full window width with app navigation and show controls. -->
+        <TitleBar
+            x:Name="AppTitleBar"
+            Grid.Row="0"
+            Height="48"
+            Title=""
+            Background="Transparent"
+            IsBackButtonVisible="True"
+            IsBackButtonEnabled="False"
+            IsPaneToggleButtonVisible="False"
+            BackRequested="AppTitleBar_BackRequested">
+            <TitleBar.LeftHeader>
+                <StackPanel
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="8">
+                    <Button
+                        x:Name="SearchTitleButton"
+                        Margin="4,0,0,0"
+                        MinHeight="44"
+                        MinWidth="0"
+                        Padding="10,0"
+                        VerticalAlignment="Center"
+                        AutomationProperties.AutomationId="SearchTitleButton"
+                        AutomationProperties.Name="Search"
+                        Click="SearchTitleButton_Click"
+                        Style="{ThemeResource SubtleButtonStyle}"
+                        ToolTipService.ToolTip="Search presentations">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon
+                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                FontSize="16"
+                                Glyph="&#xE721;" />
+                            <TextBlock VerticalAlignment="Center" Text="Search" />
+                        </StackPanel>
+                    </Button>
 
+                    <Border
+                        Width="1"
+                        Height="24"
+                        VerticalAlignment="Center"
+                        Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                    <SelectorBar
+                        x:Name="AppPageSelectorBar"
+                        VerticalAlignment="Center"
+                        AutomationProperties.AutomationId="AppPageSelectorBar"
+                        SelectionChanged="AppPageSelectorBar_SelectionChanged">
+                        <SelectorBarItem
+                            x:Name="ShowSelectorItem"
+                            AutomationProperties.AutomationId="ShowSelectorItem"
+                            MinHeight="44"
+                            Tag="Show"
+                            Text="Show">
+                            <SelectorBarItem.Icon>
+                                <FontIcon Glyph="&#xE8F5;" />
+                            </SelectorBarItem.Icon>
+                        </SelectorBarItem>
+                        <SelectorBarItem
+                            x:Name="EditorSelectorItem"
+                            AutomationProperties.AutomationId="EditorSelectorItem"
+                            MinHeight="44"
+                            Tag="EditorPage"
+                            Text="Editor">
+                            <SelectorBarItem.Icon>
+                                <FontIcon Glyph="&#xE70F;" />
+                            </SelectorBarItem.Icon>
+                        </SelectorBarItem>
+                        <SelectorBarItem
+                            x:Name="ReflowSelectorItem"
+                            AutomationProperties.AutomationId="ReflowSelectorItem"
+                            MinHeight="44"
+                            Tag="Reflow"
+                            Text="Reflow">
+                            <SelectorBarItem.Icon>
+                                <FontIcon Glyph="&#xE149;" />
+                            </SelectorBarItem.Icon>
+                        </SelectorBarItem>
+                        <SelectorBarItem
+                            x:Name="ThemeLibrarySelectorItem"
+                            AutomationProperties.AutomationId="ThemeLibrarySelectorItem"
+                            MinHeight="44"
+                            Tag="ThemeLibraryPage"
+                            Text="Theme Library">
+                            <SelectorBarItem.Icon>
+                                <FontIcon Glyph="&#xE790;" />
+                            </SelectorBarItem.Icon>
+                        </SelectorBarItem>
+                        <SelectorBarItem
+                            x:Name="SettingsSelectorItem"
+                            AutomationProperties.AutomationId="SettingsSelectorItem"
+                            MinHeight="44"
+                            Tag="Settings"
+                            Text="Settings">
+                            <SelectorBarItem.Icon>
+                                <FontIcon Glyph="&#xE713;" />
+                            </SelectorBarItem.Icon>
+                        </SelectorBarItem>
+                    </SelectorBar>
+                </StackPanel>
+            </TitleBar.LeftHeader>
+            <TitleBar.RightHeader>
+                <Grid
+                    Width="520"
+                    MinWidth="420"
+                    Padding="0,0,12,0"
+                    VerticalAlignment="Stretch">
+                    <StackPanel
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <Button
+                            x:Name="MediaPanelToggleButton"
+                            MinHeight="44"
+                            MinWidth="0"
+                            Padding="10,0"
+                            VerticalAlignment="Center"
+                            AutomationProperties.AutomationId="MediaPanelToggleButton"
+                            AutomationProperties.Name="Media panel"
+                            Click="MediaPanelToggle_Click"
+                            Style="{ThemeResource SubtleButtonStyle}"
+                            ToolTipService.ToolTip="Media panel"
+                            Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon
+                                    FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                    FontSize="16"
+                                    Glyph="&#xE714;" />
+                                <TextBlock VerticalAlignment="Center" Text="Media" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button
+                            x:Name="LooksTitleButton"
+                            MinHeight="44"
+                            MinWidth="0"
+                            Padding="10,0"
+                            VerticalAlignment="Center"
+                            AutomationProperties.AutomationId="LooksTitleButton"
+                            AutomationProperties.Name="Looks"
+                            Click="LooksTitleButton_Click"
+                            IsEnabled="False"
+                            Style="{ThemeResource SubtleButtonStyle}"
+                            ToolTipService.ToolTip="Select the active output Look.">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon
+                                    FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                    FontSize="16"
+                                    Glyph="&#xE790;" />
+                                <TextBlock VerticalAlignment="Center" Text="Looks" />
+                            </StackPanel>
+                        </Button>
+
+                        <Border
+                            Width="1"
+                            Height="24"
+                            VerticalAlignment="Center"
+                            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                        <StackPanel
+                            Orientation="Horizontal"
+                            Spacing="6"
+                            VerticalAlignment="Center">
+                            <!-- Stage output toggle -->
+                            <StackPanel
+                                Orientation="Horizontal"
+                                Spacing="8"
+                                VerticalAlignment="Center">
+                                <TextBlock
+                                    x:Name="StageTitleLabel"
+                                    VerticalAlignment="Center"
+                                    FontSize="13"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="Stage" />
+                                <ToggleSwitch
+                                    x:Name="StageTitleToggle"
+                                    MinWidth="0"
+                                    VerticalAlignment="Center"
+                                    AutomationProperties.AutomationId="StageTitleToggle"
+                                    AutomationProperties.Name="Stage output"
+                                    Header=""
+                                    OffContent=""
+                                    OnContent=""
+                                    Toggled="StageTitleToggle_Toggled" />
+                            </StackPanel>
+
+                            <!-- Audience output toggle -->
+                            <StackPanel
+                                Orientation="Horizontal"
+                                Spacing="8"
+                                VerticalAlignment="Center">
+                                <TextBlock
+                                    x:Name="AudienceTitleLabel"
+                                    VerticalAlignment="Center"
+                                    FontSize="13"
+                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                    Text="Audience" />
+                                <ToggleSwitch
+                                    x:Name="AudienceTitleToggle"
+                                    MinWidth="0"
+                                    VerticalAlignment="Center"
+                                    AutomationProperties.AutomationId="AudienceTitleToggle"
+                                    AutomationProperties.Name="Audience output"
+                                    Header=""
+                                    OffContent=""
+                                    OnContent=""
+                                    Toggled="AudienceTitleToggle_Toggled" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </TitleBar.RightHeader>
+        </TitleBar>
+
+        <Frame
+            x:Name="ContentFrame"
+            Grid.Row="1"
+            Background="Transparent" />
     </Grid>
 </Window>

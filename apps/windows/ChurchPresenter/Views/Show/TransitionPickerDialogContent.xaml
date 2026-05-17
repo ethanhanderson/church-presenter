@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="ChurchPresenter.Views.TransitionPickerDialogContent"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="using:ChurchPresenter.Views"
+    mc:Ignorable="d"
+    MinWidth="580"
+    MaxWidth="760">
+
+    <UserControl.Resources>
+        <!--
+            Runtime bindings ({Binding}) are used deliberately here to avoid a WinUI 3 build
+            deadlock: compiled bindings (x:Bind / x:DataType) on NEW local types require those
+            types to be in the intermediate assembly, but the intermediate assembly is only built
+            after a successful Pass 1. Using {Binding} breaks the cycle; each item's DataContext
+            is a TransitionPickerItem set by ItemsControl.
+        -->
+        <DataTemplate x:Key="TransitionRowTemplate">
+            <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                <Button
+                    Grid.Column="0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch"
+                    Padding="8,6"
+                    Click="TransitionRow_Click">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            Text="{Binding Definition.Name}" />
+                        <FontIcon
+                            Grid.Column="1"
+                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                            FontSize="11"
+                            Glyph="&#xE73E;"
+                            Margin="4,0,0,0"
+                            Visibility="{Binding SelectedVisibility, Mode=OneWay}" />
+                    </Grid>
+                </Button>
+                <Button
+                    Grid.Column="1"
+                    Width="28"
+                    Height="28"
+                    Padding="0"
+                    Style="{ThemeResource SubtleButtonStyle}"
+                    Click="TransitionFav_Click">
+                    <FontIcon
+                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                        FontSize="13"
+                        Glyph="{Binding FavGlyph, Mode=OneWay}" />
+                </Button>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid ColumnDefinitions="220,*" ColumnSpacing="16" MinHeight="360">
+
+        <!-- Left: transition list -->
+        <Grid Grid.Column="0" RowDefinitions="Auto,*" RowSpacing="8">
+
+            <TextBox
+                Grid.Row="0"
+                x:Name="SearchBox"
+                PlaceholderText="Search transitions…"
+                TextChanged="SearchBox_TextChanged" />
+
+            <ScrollViewer
+                Grid.Row="1"
+                VerticalScrollBarVisibility="Auto"
+                HorizontalScrollMode="Disabled">
+                <StackPanel Spacing="4">
+
+                    <TextBlock
+                        x:Name="FavoritesHeader"
+                        Text="Favorites"
+                        FontSize="11"
+                        FontWeight="SemiBold"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Margin="4,0,0,0" />
+                    <ItemsControl
+                        x:Name="FavoritesList"
+                        ItemTemplate="{StaticResource TransitionRowTemplate}" />
+
+                    <TextBlock
+                        x:Name="RecentsHeader"
+                        Text="Recent"
+                        FontSize="11"
+                        FontWeight="SemiBold"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Margin="4,8,0,0" />
+                    <ItemsControl
+                        x:Name="RecentsList"
+                        ItemTemplate="{StaticResource TransitionRowTemplate}" />
+
+                    <TextBlock
+                        x:Name="AllHeader"
+                        Text="All"
+                        FontSize="11"
+                        FontWeight="SemiBold"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Margin="4,8,0,0" />
+                    <ItemsControl
+                        x:Name="AllList"
+                        ItemTemplate="{StaticResource TransitionRowTemplate}" />
+
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Right: preview + parameters -->
+        <Grid Grid.Column="1" RowDefinitions="*,Auto" RowSpacing="12">
+
+            <!-- Hover-animated preview -->
+            <Border
+                Grid.Row="0"
+                CornerRadius="6"
+                Background="#0F172A"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                MinHeight="200">
+                <Grid x:Name="PreviewHost">
+                    <Border
+                        x:Name="FromSlide"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        Margin="16"
+                        Background="#4F46E5"
+                        CornerRadius="10"
+                        BorderThickness="0"
+                        RenderTransformOrigin="0.5,0.5">
+                        <Border.RenderTransform>
+                            <CompositeTransform x:Name="FromSlideTransform" />
+                        </Border.RenderTransform>
+                        <Grid>
+                            <Border
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Width="72"
+                                Height="72"
+                                Background="#220F172A"
+                                CornerRadius="36">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Foreground="White"
+                                    FontSize="30"
+                                    FontWeight="Bold"
+                                    Text="A" />
+                            </Border>
+                        </Grid>
+                    </Border>
+                    <Border
+                        x:Name="ToSlide"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        Margin="16"
+                        Background="#EC4899"
+                        CornerRadius="10"
+                        BorderThickness="0"
+                        RenderTransformOrigin="0.5,0.5">
+                        <Border.Clip>
+                            <RectangleGeometry x:Name="ToSlideClip" />
+                        </Border.Clip>
+                        <Border.RenderTransform>
+                            <CompositeTransform x:Name="ToSlideTransform" />
+                        </Border.RenderTransform>
+                        <Grid>
+                            <Border
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Width="72"
+                                Height="72"
+                                Background="#220F172A"
+                                CornerRadius="36">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Foreground="White"
+                                    FontSize="30"
+                                    FontWeight="Bold"
+                                    Text="B" />
+                            </Border>
+                        </Grid>
+                    </Border>
+                    <Rectangle
+                        x:Name="PreviewPlayhead"
+                        Width="2"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Stretch"
+                        Fill="#FFF8FAFC"
+                        Opacity="0"
+                        IsHitTestVisible="False">
+                        <Rectangle.RenderTransform>
+                            <TranslateTransform x:Name="PreviewPlayheadTransform" />
+                        </Rectangle.RenderTransform>
+                    </Rectangle>
+                    <TextBlock
+                        x:Name="PreviewHint"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Bottom"
+                        Margin="0,0,0,10"
+                        FontSize="11"
+                        Foreground="#CCE2E8F0"
+                        Text="Drag across the preview to scrub the transition" />
+                    <Rectangle
+                        x:Name="PreviewTracker"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        Fill="Transparent"
+                        PointerEntered="PreviewTracker_PointerEntered"
+                        PointerExited="PreviewTracker_PointerExited"
+                        PointerMoved="PreviewTracker_PointerMoved" />
+                </Grid>
+            </Border>
+
+            <!-- Parameter panel -->
+            <StackPanel Grid.Row="1" Spacing="10">
+
+                <Grid x:Name="DurationRow" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                    <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Duration" />
+                    <Slider
+                        Grid.Column="1"
+                        x:Name="DurationSlider"
+                        Width="120"
+                        Minimum="100"
+                        Maximum="2000"
+                        StepFrequency="50"
+                        SnapsTo="StepValues"
+                        ValueChanged="DurationSlider_ValueChanged" />
+                    <TextBlock
+                        Grid.Column="2"
+                        x:Name="DurationLabel"
+                        VerticalAlignment="Center"
+                        Width="48"
+                        Text="400 ms" />
+                </Grid>
+
+                <Grid
+                    x:Name="DirectionRow"
+                    ColumnDefinitions="*,Auto"
+                    ColumnSpacing="8"
+                    Visibility="Collapsed">
+                    <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Direction" />
+                    <ComboBox
+                        Grid.Column="1"
+                        x:Name="DirectionCombo"
+                        Width="140"
+                        SelectionChanged="DirectionCombo_SelectionChanged">
+                        <ComboBoxItem Content="From Left" Tag="fromLeft" />
+                        <ComboBoxItem Content="From Right" Tag="fromRight" />
+                        <ComboBoxItem Content="From Top" Tag="fromTop" />
+                        <ComboBoxItem Content="From Bottom" Tag="fromBottom" />
+                    </ComboBox>
+                </Grid>
+
+                <Grid
+                    x:Name="EasingRow"
+                    ColumnDefinitions="*,Auto"
+                    ColumnSpacing="8">
+                    <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Easing" />
+                    <ComboBox
+                        Grid.Column="1"
+                        x:Name="EasingCombo"
+                        Width="140">
+                        <ComboBoxItem Content="Default" Tag="" />
+                        <ComboBoxItem Content="Ease In" Tag="ease-in" />
+                        <ComboBoxItem Content="Ease Out" Tag="ease-out" />
+                        <ComboBoxItem Content="Linear" Tag="linear" />
+                        <ComboBoxItem Content="Ease" Tag="ease" />
+                        <ComboBoxItem Content="Bounce" Tag="bounce" />
+                        <ComboBoxItem Content="Elastic" Tag="elastic" />
+                    </ComboBox>
+                </Grid>
+
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                    <Button
+                        Grid.Column="1"
+                        x:Name="FavoriteButton"
+                        Width="32"
+                        Height="32"
+                        Padding="0"
+                        Style="{ThemeResource SubtleButtonStyle}"
+                        Click="FavoriteButton_Click"
+                        ToolTipService.ToolTip="Toggle favorite">
+                        <FontIcon
+                            x:Name="FavoriteIcon"
+                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                            FontSize="14"
+                            Glyph="&#xE734;" />
+                    </Button>
+                    <Button
+                        Grid.Column="2"
+                        Content="Clear"
+                        Click="ResetButton_Click" />
+                </Grid>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

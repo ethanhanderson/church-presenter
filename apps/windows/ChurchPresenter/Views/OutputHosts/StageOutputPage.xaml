@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="ChurchPresenter.Views.StageOutputPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:ChurchPresenter.Views"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    x:DataType="local:StageOutputPage"
+    mc:Ignorable="d"
+    Background="Black"
+    IsTabStop="True"
+    KeyDown="Page_KeyDown"
+    KeyUp="Page_KeyUp">
+    <Grid>
+        <local:ProgramOutputSurface
+            IsHitTestVisible="False"
+            PlaybackRegistrationMode="Mirror"
+            ViewModel="{x:Bind ViewModel, Mode=OneWay}" />
+
+        <!-- Captures pointer movement so the close affordance can fade in on hover. -->
+        <Grid
+            x:Name="PointerOverlay"
+            Background="Transparent"
+            PointerEntered="PointerOverlay_PointerEntered"
+            PointerMoved="PointerOverlay_PointerMoved"
+            PointerExited="PointerOverlay_PointerExited">
+            <Grid
+                x:Name="CloseStageChrome"
+                Width="64"
+                Height="64"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0,0,24,24"
+                Opacity="0"
+                IsHitTestVisible="False">
+                <Border
+                    x:Name="CloseStageHitArea"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    AutomationProperties.Name="Close stage output"
+                    Background="Transparent"
+                    PointerEntered="CloseStageHitArea_PointerEntered"
+                    PointerExited="CloseStageHitArea_PointerExited"
+                    Tapped="CloseStageHitArea_Tapped"
+                    ToolTipService.ToolTip="Close stage output">
+                    <Viewbox Width="56" Height="56">
+                        <Grid Width="48" Height="48">
+                            <Ellipse
+                                x:Name="CloseCircle"
+                                Width="48"
+                                Height="48"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Fill="#99FFFFFF" />
+                            <FontIcon
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                FontSize="20"
+                                Foreground="#FF000000"
+                                Glyph="&#xE8BB;"
+                                IsHitTestVisible="False" />
+                        </Grid>
+                    </Viewbox>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</Page>

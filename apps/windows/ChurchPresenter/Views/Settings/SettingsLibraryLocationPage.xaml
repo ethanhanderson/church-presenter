@@ -1,0 +1,579 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="ChurchPresenter.Views.SettingsLibraryLocationPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:ChurchPresenter.Views"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:contentModels="using:ChurchPresenter.Models.Content"
+    xmlns:settingsModels="using:ChurchPresenter.Models.Settings"
+    mc:Ignorable="d"
+    Background="Transparent">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Padding="32,20,32,32">
+            <Border x:Name="SettingsColumnRoot" VerticalAlignment="Stretch">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <local:SettingsDetailHeader
+                        Grid.Row="0"
+                        Margin="0,0,0,28"
+                        CurrentSegmentText="Library storage" />
+
+                    <Border
+                        x:Name="DetailContentRoot"
+                        Grid.Row="1"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Top">
+                        <StackPanel Spacing="28">
+
+                            <!-- Health summary cards -->
+                            <StackPanel Spacing="10">
+                                <TextBlock
+                                    FontWeight="SemiBold"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="Health" />
+
+                                <ItemsControl ItemsSource="{x:Bind ViewModel.HealthSummaryCards, Mode=OneWay}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="10" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="contentModels:ContentHealthSummaryCard">
+                                            <Border
+                                                Padding="16,12"
+                                                MinWidth="180"
+                                                Background="{ThemeResource LayerFillColorAltBrush}"
+                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="8">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock
+                                                        FontSize="12"
+                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                        Text="{x:Bind Title}" />
+                                                    <TextBlock
+                                                        FontSize="14"
+                                                        FontWeight="SemiBold"
+                                                        Text="{x:Bind Status}" />
+                                                    <TextBlock
+                                                        FontSize="12"
+                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                        Text="{x:Bind Description}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
+                            <!-- Content library issues -->
+                            <StackPanel Spacing="10">
+                                <TextBlock
+                                    FontWeight="SemiBold"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="Content library issues" />
+
+                                <Border Style="{StaticResource SettingsAboutCardStyle}">
+                                    <StackPanel Spacing="16">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Style="{StaticResource SettingsNavCardPrimaryTextStyle}" Text="Background maintenance" />
+                                            <TextBlock
+                                                Style="{StaticResource SettingsNavCardSecondaryTextStyle}"
+                                                Text="{x:Bind ViewModel.BackgroundContentMaintenanceStatus, Mode=OneWay}"
+                                                TextWrapping="WrapWholeWords" />
+                                        </StackPanel>
+
+                                        <StackPanel Spacing="8">
+                                            <TextBlock
+                                                FontSize="12"
+                                                FontWeight="SemiBold"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="Settings health" />
+                                            <TextBlock
+                                                FontSize="12"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="{x:Bind ViewModel.LibraryHealthIssuesEmptyState, Mode=OneWay}"
+                                                TextWrapping="WrapWholeWords" />
+                                            <ItemsControl ItemsSource="{x:Bind ViewModel.LibraryHealthIssues, Mode=OneWay}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Spacing="6" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="settingsModels:SettingsHealthIssue">
+                                                        <Border
+                                                            Padding="12,8"
+                                                            Background="{ThemeResource LayerFillColorAltBrush}"
+                                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="6">
+                                                            <StackPanel Spacing="3">
+                                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                    <TextBlock
+                                                                        Grid.Column="0"
+                                                                        FontSize="12"
+                                                                        FontWeight="SemiBold"
+                                                                        Text="{x:Bind Code}" />
+                                                                    <TextBlock
+                                                                        Grid.Column="1"
+                                                                        FontSize="12"
+                                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                        Text="{x:Bind Severity}" />
+                                                                </Grid>
+                                                                <TextBlock
+                                                                    FontSize="12"
+                                                                    Text="{x:Bind Message}"
+                                                                    TextWrapping="WrapWholeWords" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+
+                                        <StackPanel Spacing="8">
+                                            <TextBlock
+                                                FontSize="12"
+                                                FontWeight="SemiBold"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="Diagnostics and caches" />
+                                            <TextBlock
+                                                FontSize="12"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="{x:Bind ViewModel.ContentDiagnosticsEmptyState, Mode=OneWay}"
+                                                TextWrapping="WrapWholeWords" />
+                                            <ItemsControl ItemsSource="{x:Bind ViewModel.ContentDiagnostics, Mode=OneWay}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Spacing="6" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="contentModels:ContentDiagnosticItem">
+                                                        <Border
+                                                            Padding="12,8"
+                                                            Background="{ThemeResource LayerFillColorAltBrush}"
+                                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="6">
+                                                            <StackPanel Spacing="3">
+                                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                    <TextBlock
+                                                                        Grid.Column="0"
+                                                                        FontSize="12"
+                                                                        FontWeight="SemiBold"
+                                                                        Text="{x:Bind Title}" />
+                                                                    <TextBlock
+                                                                        Grid.Column="1"
+                                                                        FontSize="12"
+                                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                        Text="{x:Bind Severity}" />
+                                                                </Grid>
+                                                                <TextBlock
+                                                                    FontSize="12"
+                                                                    Text="{x:Bind Message}"
+                                                                    TextWrapping="WrapWholeWords" />
+                                                                <TextBlock
+                                                                    FontFamily="Consolas"
+                                                                    FontSize="12"
+                                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                    Text="{x:Bind SubjectId}"
+                                                                    TextWrapping="WrapWholeWords" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+
+                                        <StackPanel Spacing="8">
+                                            <TextBlock
+                                                FontSize="12"
+                                                FontWeight="SemiBold"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="Last audit issues" />
+                                            <TextBlock
+                                                FontSize="12"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="{x:Bind ViewModel.AuditIssuesEmptyState, Mode=OneWay}"
+                                                TextWrapping="WrapWholeWords" />
+                                            <ItemsControl ItemsSource="{x:Bind ViewModel.AuditIssues, Mode=OneWay}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Spacing="6" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="contentModels:AuditIssue">
+                                                        <Border
+                                                            Padding="12,8"
+                                                            Background="{ThemeResource LayerFillColorAltBrush}"
+                                                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="6">
+                                                            <StackPanel Spacing="3">
+                                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                    <TextBlock
+                                                                        Grid.Column="0"
+                                                                        FontSize="12"
+                                                                        FontWeight="SemiBold"
+                                                                        Text="{x:Bind Code}" />
+                                                                    <TextBlock
+                                                                        Grid.Column="1"
+                                                                        FontSize="12"
+                                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                        Text="{Binding Severity}" />
+                                                                </Grid>
+                                                                <TextBlock
+                                                                    FontSize="12"
+                                                                    Text="{x:Bind Message}"
+                                                                    TextWrapping="WrapWholeWords" />
+                                                                <TextBlock
+                                                                    FontFamily="Consolas"
+                                                                    FontSize="12"
+                                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                    Text="{x:Bind Path}"
+                                                                    TextWrapping="WrapWholeWords" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- Location -->
+                            <StackPanel Spacing="10">
+                                <TextBlock
+                                    FontWeight="SemiBold"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="Location" />
+
+                                <Border Style="{StaticResource SettingsAboutCardStyle}">
+                                    <StackPanel Spacing="16">
+                                        <Grid ColumnSpacing="14">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <FontIcon
+                                                Grid.Column="0"
+                                                VerticalAlignment="Top"
+                                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                FontSize="20"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Glyph="&#xE8B7;" />
+                                            <StackPanel Grid.Column="1" Spacing="10">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Style="{StaticResource SettingsNavCardPrimaryTextStyle}" Text="Managed content folder" />
+                                                    <TextBlock
+                                                        Style="{StaticResource SettingsNavCardSecondaryTextStyle}"
+                                                        Text="This folder holds Libraries, Playlists, Presentations, Themes, Configurations, Media, and Audits."
+                                                        TextWrapping="WrapWholeWords" />
+                                                </StackPanel>
+
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock
+                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                        Text="Current location" />
+                                                    <TextBlock
+                                                        FontFamily="Consolas"
+                                                        FontSize="12"
+                                                        Text="{x:Bind ViewModel.ContentFolderPath, Mode=OneWay}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                    <TextBlock
+                                                        FontSize="12"
+                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                        Text="{x:Bind ViewModel.ContentMaintenanceStatus, Mode=OneWay}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </StackPanel>
+
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock
+                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                        Text="Default location" />
+                                                    <TextBlock
+                                                        FontFamily="Consolas"
+                                                        FontSize="12"
+                                                        Text="{x:Bind ViewModel.DefaultContentFolderPath, Mode=OneWay}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </StackPanel>
+
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <Button Click="BrowseFolder_Click" Content="Choose folder..." />
+                                                    <Button Click="OpenFolder_Click" Content="Open folder" />
+                                                    <Button Click="ResetFolder_Click" Content="Use default location" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Expander Style="{StaticResource SettingsAboutExpanderStyle}">
+                                    <Expander.Header>
+                                        <Grid Padding="0,14,0,14" ColumnDefinitions="Auto,*" ColumnSpacing="14" VerticalAlignment="Center">
+                                            <FontIcon
+                                                Grid.Column="0"
+                                                VerticalAlignment="Center"
+                                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                FontSize="20"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Glyph="&#xE946;" />
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock Style="{StaticResource SettingsNavCardPrimaryTextStyle}" Text="What the app expects here" />
+                                                <TextBlock
+                                                    Style="{StaticResource SettingsNavCardSecondaryTextStyle}"
+                                                    Text="Expand to see the managed folder structure and maintenance log file."
+                                                    TextWrapping="WrapWholeWords" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Expander.Header>
+                                    <Expander.Content>
+                                        <StackPanel Padding="16,14,16,14" Spacing="8">
+                                            <TextBlock
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="Libraries/, Playlists/, Presentations/, Themes/, Configurations/, Media/, and Audits/ are managed under this root. Machine-specific bindings are stored in %LocalAppData%\ChurchPresenter\MachineState\."
+                                                TextWrapping="WrapWholeWords" />
+                                            <TextBlock
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="Maintenance log"
+                                                TextWrapping="WrapWholeWords" />
+                                            <TextBlock
+                                                FontFamily="Consolas"
+                                                FontSize="12"
+                                                Text="{x:Bind ViewModel.ContentMaintenanceLogPath, Mode=OneWay}"
+                                                TextWrapping="WrapWholeWords" />
+                                        </StackPanel>
+                                    </Expander.Content>
+                                </Expander>
+                            </StackPanel>
+
+                            <!-- Audit and maintenance actions -->
+                            <StackPanel Spacing="10">
+                                <TextBlock
+                                    FontWeight="SemiBold"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="Maintenance" />
+
+                                <Border Style="{StaticResource SettingsAboutCardStyle}">
+                                    <StackPanel Spacing="16">
+                                        <!-- Audit row -->
+                                        <Grid ColumnSpacing="14">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <FontIcon
+                                                Grid.Column="0"
+                                                VerticalAlignment="Center"
+                                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                FontSize="20"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Glyph="&#xF246;" />
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock Style="{StaticResource SettingsNavCardPrimaryTextStyle}" Text="Content audit" />
+                                                <TextBlock
+                                                    Style="{StaticResource SettingsNavCardSecondaryTextStyle}"
+                                                    Text="{x:Bind ViewModel.LastAuditSummary, Mode=OneWay}"
+                                                    TextWrapping="WrapWholeWords" />
+                                                <TextBlock
+                                                    FontSize="12"
+                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                    Text="{x:Bind ViewModel.LastAuditAt, Mode=OneWay}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                <ProgressRing
+                                                    Width="24"
+                                                    Height="24"
+                                                    IsActive="{x:Bind ViewModel.IsContentMaintenanceBusy, Mode=OneWay}" />
+                                                <Button Click="RunAudit_Click" Content="Run audit" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Scan row -->
+                                        <Grid ColumnSpacing="14">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <FontIcon
+                                                Grid.Column="0"
+                                                VerticalAlignment="Center"
+                                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                FontSize="20"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Glyph="&#xE9CE;" />
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock Style="{StaticResource SettingsNavCardPrimaryTextStyle}" Text="Scan for changes and repairs" />
+                                                <TextBlock
+                                                    Style="{StaticResource SettingsNavCardSecondaryTextStyle}"
+                                                    Text="Checks for missing directories, stray presentation bundles, malformed catalog files, and duplicate metadata."
+                                                    TextWrapping="WrapWholeWords" />
+                                            </StackPanel>
+                                            <Button Grid.Column="2" VerticalAlignment="Center" Click="ScanNow_Click" Content="Scan now" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- Recent checks summary (last 3) + expandable full history -->
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        FontWeight="SemiBold"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="Recent checks" />
+                                    <Button
+                                        Grid.Column="1"
+                                        Click="RefreshLog_Click"
+                                        Content="Refresh" />
+                                </Grid>
+
+                                <Border Style="{StaticResource SettingsAboutCardStyle}">
+                                    <StackPanel Spacing="12">
+                                        <TextBlock
+                                            Style="{StaticResource SettingsNavCardSecondaryTextStyle}"
+                                            Text="Startup scans, manual audits, repair passes, and location changes are recorded here."
+                                            TextWrapping="WrapWholeWords" />
+
+                                        <!-- Compact last-3 summary -->
+                                        <TextBlock
+                                            FontSize="12"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Text="{x:Bind ViewModel.ContentMaintenanceEmptyState, Mode=OneWay}"
+                                            TextWrapping="WrapWholeWords" />
+
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.RecentChecks, Mode=OneWay}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Spacing="6" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="contentModels:ContentMaintenanceLogEntry">
+                                                    <Border
+                                                        Padding="12,8"
+                                                        Background="{ThemeResource LayerFillColorAltBrush}"
+                                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                                            <TextBlock
+                                                                Grid.Column="0"
+                                                                VerticalAlignment="Center"
+                                                                FontSize="12"
+                                                                FontWeight="SemiBold"
+                                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                                Text="{x:Bind TimestampDisplay}" />
+                                                            <TextBlock
+                                                                Grid.Column="1"
+                                                                VerticalAlignment="Center"
+                                                                FontSize="12"
+                                                                Text="{x:Bind Message}"
+                                                                TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock
+                                                                Grid.Column="2"
+                                                                VerticalAlignment="Center"
+                                                                FontSize="12"
+                                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                Text="{x:Bind Severity}" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <!-- Expand to full history -->
+                                        <Expander
+                                            HorizontalAlignment="Stretch"
+                                            HorizontalContentAlignment="Stretch"
+                                            IsExpanded="{x:Bind ViewModel.IsHistoryExpanded, Mode=TwoWay}">
+                                            <Expander.Header>
+                                                <TextBlock
+                                                    FontSize="13"
+                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                    Text="View full history" />
+                                            </Expander.Header>
+                                            <Expander.Content>
+                                                <ScrollViewer
+                                                    MaxHeight="340"
+                                                    Padding="0,8,0,0"
+                                                    VerticalScrollBarVisibility="Auto">
+                                                    <ItemsControl ItemsSource="{x:Bind ViewModel.ContentMaintenanceEntries, Mode=OneWay}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <StackPanel Spacing="8" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="contentModels:ContentMaintenanceLogEntry">
+                                                                <Border
+                                                                    Padding="12"
+                                                                    Background="{ThemeResource LayerFillColorAltBrush}"
+                                                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="8">
+                                                                    <StackPanel Spacing="4">
+                                                                        <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+                                                                            <TextBlock
+                                                                                Grid.Column="0"
+                                                                                FontSize="12"
+                                                                                FontWeight="SemiBold"
+                                                                                Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                                                Text="{x:Bind TimestampDisplay}" />
+                                                                            <TextBlock
+                                                                                Grid.Column="1"
+                                                                                FontSize="12"
+                                                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                                Text="{x:Bind Trigger}" />
+                                                                            <TextBlock
+                                                                                Grid.Column="2"
+                                                                                HorizontalAlignment="Right"
+                                                                                FontSize="12"
+                                                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                                Text="{x:Bind Severity}" />
+                                                                        </Grid>
+                                                                        <TextBlock
+                                                                            Style="{StaticResource SettingsNavCardPrimaryTextStyle}"
+                                                                            Text="{x:Bind Message}"
+                                                                            TextWrapping="WrapWholeWords" />
+                                                                        <TextBlock
+                                                                            FontFamily="Consolas"
+                                                                            FontSize="12"
+                                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                            Text="{x:Bind Path}"
+                                                                            TextWrapping="WrapWholeWords" />
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </ScrollViewer>
+                                            </Expander.Content>
+                                        </Expander>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</Page>

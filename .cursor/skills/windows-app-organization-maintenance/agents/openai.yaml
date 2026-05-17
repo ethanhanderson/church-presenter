@@ -1,0 +1,4 @@
+interface:
+  display_name: "Windows App Organization Maintainer"
+  short_description: "Review WinUI/.NET structure and clean up recent Windows app changes"
+  default_prompt: "Review the recent Windows app changes, split oversized mixed-purpose files into smaller focused files where appropriate, move code to the correct Windows project and folder, preserve the canonical app workspace/content layout, and clean up unused code or files left behind by recent edits."

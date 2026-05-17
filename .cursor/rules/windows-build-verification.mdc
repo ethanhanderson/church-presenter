@@ -1,0 +1,75 @@
+---
+description: Keep Windows/.NET app changes buildable without forcing unnecessary WinUI CLI rebuilds.
+alwaysApply: false
+---
+# Windows Build Verification
+
+Applies when editing the **WinUI 3** app and its **Application** / **Core** libraries under `apps/windows/`, ChurchPresenter test or benchmark projects under `tests/`, or shared root build configuration that can affect those projects.
+
+Use judgment for shared files such as `Directory.Build.props`, `global.json`, or `.editorconfig`: follow this rule when the change affects .NET SDK selection, MSBuild properties, analyzers, formatting, packages, target frameworks, platforms, or generated outputs for the Windows projects. Do not run Windows verification for unrelated edits that merely happen to touch a broadly scoped file.
+
+Keep WinUI and app-level test changes in a **buildable** state. Microsoft Learn documents that `dotnet build` builds a project and dependencies with MSBuild, uses implicit restore, and supports incremental builds; use it as the normal compile gate after substantive changes.
+
+## When to build
+
+Skip the CLI app build only when changes are **small and non-functional**, for example:
+
+- Comment-only, documentation-only, or whitespace-only edits that cannot affect compilation.
+- Purely cosmetic XAML or copy where the expected validation path is **XAML Hot Reload** or **.NET Hot Reload** in Visual Studio (debugger attached), not a clean CLI compile.
+
+Run the app build after **substantive** edits: project/manifest/packages, C# behavior, resources that participate in the build, packaging, activation, or anything that could change binaries:
+
+`dotnet build apps/windows/ChurchPresenter/ChurchPresenter.csproj -c Debug -p:Platform=x64`
+
+If the build fails because app outputs are locked, stop the running app process safely and retry once before giving up.
+
+## Safely stop the running app before building
+
+Use PowerShell process cmdlets against the **ChurchPresenter app process only**. Do not start with `taskkill /F`, do not stop broad names like `dotnet`, `msbuild`, `devenv`, or `pwsh`, and do not use `Stop-Process -Force` unless the user explicitly approves it.
+
+Prefer an orderly UI shutdown first. `Get-Process` returns `System.Diagnostics.Process` objects; `CloseMainWindow()` sends the same kind of close request as the user closing the window and does not force quit. Then wait for exit. If it remains running, use `Stop-Process` for those same process IDs and `Wait-Process` before rebuilding.
+
+```powershell
+$app = Get-Process -Name ChurchPresenter -ErrorAction SilentlyContinue
+if ($app) {
+    $app | Select-Object Id, ProcessName, MainWindowTitle, Path
+    foreach ($process in $app) {
+        if ($process.MainWindowHandle -ne 0) { [void]$process.CloseMainWindow() }
+    }
+    $app | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+    $remaining = Get-Process -Name ChurchPresenter -ErrorAction SilentlyContinue |
+        Where-Object { $app.Id -contains $_.Id }
+    if ($remaining) {
+        $remaining | Stop-Process
+        $remaining | Wait-Process -Timeout 10
+    }
+}
+```
+
+If more than one matching process is ambiguous, or the process appears to be owned by a Visual Studio F5 session with unsaved state/dialogs, stop and ask the user to close or stop debugging in Visual Studio.
+
+## Safer automated checks (usually not blocked by a running WinUI app)
+
+These test projects reference **Core** / **Application** only—not the packaged WinUI app output—so `dotnet test` here typically **does not** build `ChurchPresenter.csproj` and is less likely to collide with a locked WinUI output:
+
+- `dotnet test tests/ChurchPresenter.Core.Tests/ChurchPresenter.Core.Tests.csproj` — shared `.cpres` I/O and core logic.
+- `dotnet test tests/ChurchPresenter.App.Tests/ChurchPresenter.App.Tests.csproj` — app services, activation, settings, live session behavior covered by those tests.
+- If you touch another `tests/ChurchPresenter*/` project, run the narrowest relevant `dotnet test`, `dotnet build`, or benchmark command for that project.
+
+## Run after build
+
+After the app build succeeds, launch the app in **Debug configuration** from the CLI when it is practical:
+
+`dotnet run --project apps/windows/ChurchPresenter/ChurchPresenter.csproj --configuration Debug -p:Platform=x64`
+
+`dotnet run` depends on `dotnet build`, runs from source, and supports `--project` and `--configuration`. If WinUI packaging/debugger activation makes CLI launch unreliable, do **not** fight it with ad hoc commands; report that the build passed and ask the user to start debugging in Visual Studio. Only use PowerShell `Debug-Process` when the user explicitly asks to attach a registered debugger.
+
+## Fix errors and warnings from your changes
+
+Whenever you run **`dotnet build`** or **`dotnet test`** (or Visual Studio **Build**) for work touched in the **current chat**, treat the output as blocking until it is clean **for that scope**:
+
+- **Resolve every build error** and **test failure** that appears in projects or files you modified or that are clearly caused by those edits (including cascading failures).
+- **Resolve compiler/analyzer warnings** reported for the same changed code paths—nullable reference types, unused usings, XAML or WinUI analyzer messages, obsolete APIs, and similar—unless the project already suppresses them globally and your change did not add new ones.
+- Do **not** leave “fix later” failures from this session’s edits. If something is pre-existing and unrelated, you may note it; still fix anything your changes surfaced or worsened.
+
+Iterate: edit → build or test again → repeat until the relevant command succeeds without new issues attributable to your work.

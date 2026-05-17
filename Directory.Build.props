@@ -1,0 +1,8 @@
+<Project>
+  <!-- Repo-wide: IDE + CA analyzers and EditorConfig-backed style on build (helps agents and CI). -->
+  <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
+  </PropertyGroup>
+</Project>

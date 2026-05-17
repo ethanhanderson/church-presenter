@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <!-- Avoid Debugger.Break in generated App.g.i.cs on first UI exception; use App_UnhandledException / VS exception settings instead. -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_BREAK_ON_UNHANDLED_EXCEPTION</DefineConstants>
+  </PropertyGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
@@ -6,12 +11,23 @@
     <RootNamespace>ChurchPresenter</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x86;x64;ARM64</Platforms>
+    <Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'AnyCPU'">x64</Platform>
+    <PlatformTarget Condition="'$(PlatformTarget)' == ''">$(Platform)</PlatformTarget>
     <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
-    <PublishProfile>win-$(Platform).pubxml</PublishProfile>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$(Platform)' == 'x86'">win-x86</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$(Platform)' == 'x64'">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$(Platform)' == 'ARM64'">win-arm64</RuntimeIdentifier>
+    <PublishProfile Condition="'$(PublishProfile)' == '' and '$(Platform)' == 'x86'">win-x86.pubxml</PublishProfile>
+    <PublishProfile Condition="'$(PublishProfile)' == '' and '$(Platform)' == 'x64'">win-x64.pubxml</PublishProfile>
+    <PublishProfile Condition="'$(PublishProfile)' == '' and '$(Platform)' == 'ARM64'">win-arm64.pubxml</PublishProfile>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -37,10 +53,16 @@
     <ProjectCapability Include="Msix" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.1" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.7705" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
   </ItemGroup>
-
+  <ItemGroup>
+    <ProjectReference Include="..\ChurchPresenter.Application\ChurchPresenter.Application.csproj" />
+  </ItemGroup>
   <!--
     Defining the "HasPackageAndPublishMenuAddedByProject" property here allows the Solution
     Explorer "Package and Publish" context menu entry to be enabled for this project even if
@@ -57,4 +79,14 @@
     <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
     <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">True</PublishTrimmed>
   </PropertyGroup>
+
+  <Target Name="SyncRegisteredAppxLayout" AfterTargets="Build" Condition="'$(EnableMsixTooling)'=='true' and Exists('$(OutDir)AppX\\')">
+    <ItemGroup>
+      <AppxRootFiles Include="$(OutDir)*.*" />
+      <AppxAssetFiles Include="$(OutDir)Assets\**\*.*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(AppxRootFiles)" DestinationFolder="$(OutDir)AppX" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(AppxAssetFiles)" DestinationFolder="$(OutDir)AppX\Assets\%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

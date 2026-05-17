@@ -10,4 +10,9 @@
     <Platform Solution="*|x86" Project="x86" />
     <Deploy />
   </Project>
+  <Project Path="..\ChurchPresenter.Core\ChurchPresenter.Core.csproj" />
+  <Project Path="..\ChurchPresenter.Application\ChurchPresenter.Application.csproj" />
+  <Project Path="..\..\..\tests\ChurchPresenter.Core.Tests\ChurchPresenter.Core.Tests.csproj" />
+  <Project Path="..\..\..\tests\ChurchPresenter.App.Tests\ChurchPresenter.App.Tests.csproj" />
+  <Project Path="..\..\..\tests\ChurchPresenter.Rendering.Benchmarks\ChurchPresenter.Rendering.Benchmarks.csproj" />
 </Solution>

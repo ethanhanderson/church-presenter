@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="ChurchPresenter.Views.ThemesPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:ChurchPresenter.Controls"
+    xmlns:converters="using:ChurchPresenter.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:ChurchPresenter.Views"
+    xmlns:models="using:ChurchPresenter.Models.Themes"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    x:Name="RootPage"
+    x:DataType="local:ThemesPage"
+    mc:Ignorable="d"
+    Background="Transparent">
+    <Page.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    </Page.Resources>
+
+    <NavigationView
+        IsBackButtonVisible="Collapsed"
+        IsSettingsVisible="False"
+        PaneDisplayMode="Left"
+        PaneTitle="Themes">
+        <NavigationView.PaneCustomContent>
+        <Grid
+            Background="{ThemeResource LayerFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="0,0,1,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Padding="16" Spacing="12">
+                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Themes" />
+                <TextBox Header="Theme Name" Text="{x:Bind ViewModel.ThemeName, Mode=TwoWay}" />
+                <ComboBox
+                    Header="Theme Aspect Ratio"
+                    ItemsSource="{x:Bind ViewModel.AspectRatioChoices, Mode=OneWay}"
+                    SelectedItem="{x:Bind ViewModel.ThemeAspectRatio, Mode=TwoWay}" />
+                <TextBlock
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{x:Bind ViewModel.SaveStateLabel, Mode=OneWay}" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Command="{x:Bind ViewModel.CreateThemeCommand, Mode=OneWay}" Content="New" />
+                    <Button Command="{x:Bind ViewModel.DuplicateThemeCommand, Mode=OneWay}" Content="Duplicate" />
+                    <Button Command="{x:Bind ViewModel.DeleteThemeCommand, Mode=OneWay}" Content="Delete" />
+                </StackPanel>
+            </StackPanel>
+
+            <ListView
+                x:Name="ThemesList"
+                Grid.Row="1"
+                Margin="12,0"
+                IsItemClickEnabled="True"
+                ItemClick="ThemesList_ItemClick"
+                ItemsSource="{x:Bind ViewModel.Themes, Mode=OneWay}"
+                SelectionMode="Single">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="models:ThemeTemplate">
+                        <StackPanel Margin="0,0,0,8">
+                                <TextBlock FontWeight="SemiBold" Text="{x:Bind Name, Mode=OneWay}" />
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{x:Bind AspectRatio, Mode=OneWay}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <StackPanel Grid.Row="2" Padding="16" Spacing="8">
+                <Button Command="{x:Bind ViewModel.SaveLibraryCommand, Mode=OneWay}" Content="Save Theme Library" />
+                <TextBlock
+                    FontSize="12"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+        </Grid>
+        </NavigationView.PaneCustomContent>
+
+        <Grid ColumnDefinitions="*,340" Background="Transparent">
+
+        <Grid
+            Grid.Column="0"
+            Padding="16"
+            Background="{ThemeResource LayerFillColorDefaultBrush}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Spacing="4">
+                <TextBlock FontSize="22" FontWeight="SemiBold" Text="{x:Bind ViewModel.SelectedThemeSlideName, Mode=OneWay}" />
+                <TextBlock
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{x:Bind ViewModel.CurrentPresentationTitle, Mode=OneWay}" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Margin="0,12,0,12" Spacing="8">
+                <ComboBox
+                    x:Name="SourceSlidesCombo"
+                    Header="Presentation Source Slide"
+                    DisplayMemberPath="SectionLabel"
+                    ItemsSource="{x:Bind ViewModel.SourceSlides, Mode=OneWay}"
+                    SelectionChanged="SourceSlidesCombo_SelectionChanged" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Command="{x:Bind ViewModel.CreateThemeFromSourceSlideCommand, Mode=OneWay}" Content="Create Theme From Slide" />
+                    <Button Command="{x:Bind ViewModel.AddThemeSlideFromSourceCommand, Mode=OneWay}" Content="Add Theme Slide From Slide" />
+                    <Button Command="{x:Bind ViewModel.ApplyThemeToPresentationCommand, Mode=OneWay}" Content="Apply To Presentation" />
+                </StackPanel>
+            </StackPanel>
+
+            <Border
+                Grid.Row="2"
+                Background="Black"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+                <controls:SlideStageView
+                    Margin="12"
+                    Project="{x:Bind ViewModel.ThemePreviewProject, Mode=OneWay}"
+                    RenderMode="Editor"
+                    ShowSafeArea="True"
+                    Slide="{x:Bind ViewModel.ThemePreviewSlide, Mode=OneWay}" />
+            </Border>
+
+            <StackPanel Grid.Row="3" Margin="0,16,0,0" Orientation="Horizontal" Spacing="8">
+                <Button Command="{x:Bind ViewModel.AddTextLayerCommand, Mode=OneWay}" Content="Add Text" />
+                <Button Command="{x:Bind ViewModel.AddShapeLayerCommand, Mode=OneWay}" Content="Add Shape" />
+                <Button Command="{x:Bind ViewModel.DeleteLayerCommand, Mode=OneWay}" Content="Delete Layer" />
+                <Button Command="{x:Bind ViewModel.DeleteThemeSlideCommand, Mode=OneWay}" Content="Delete Theme Slide" />
+            </StackPanel>
+        </Grid>
+
+        <ScrollViewer
+            Grid.Column="1"
+            Background="{ThemeResource LayerFillColorDefaultBrush}">
+            <StackPanel Padding="16" Spacing="12">
+                <TextBlock FontSize="22" FontWeight="SemiBold" Text="Inspector" />
+
+                <ListView
+                    x:Name="ThemeSlidesList"
+                    Height="180"
+                    IsItemClickEnabled="True"
+                    ItemClick="ThemeSlidesList_ItemClick"
+                    ItemsSource="{x:Bind ViewModel.ThemeSlides, Mode=OneWay}"
+                    SelectionMode="Single">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="models:ThemeTemplateSlide">
+                            <StackPanel Margin="0,0,0,8">
+                                <TextBlock FontWeight="SemiBold" Text="{x:Bind Name, Mode=OneTime}" />
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{x:Bind LayoutType, Mode=OneTime}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <TextBox
+                    Header="Theme Slide Name"
+                    Text="{x:Bind ViewModel.SelectedThemeSlideName, Mode=TwoWay}"
+                    Visibility="{x:Bind ViewModel.HasSelectedThemeSlide, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                <TextBox
+                    Header="Layout Type"
+                    Text="{x:Bind ViewModel.SelectedThemeSlideLayoutType, Mode=TwoWay}"
+                    Visibility="{x:Bind ViewModel.HasSelectedThemeSlide, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                <TextBox
+                    Header="Slide Style"
+                    Text="{x:Bind ViewModel.SelectedThemeSlideRole, Mode=TwoWay}"
+                    Visibility="{x:Bind ViewModel.HasSelectedThemeSlide, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+
+                <TextBlock FontWeight="SemiBold" Text="Layers" />
+                <ListView
+                    x:Name="LayersList"
+                    Height="180"
+                    IsItemClickEnabled="True"
+                    ItemClick="LayersList_ItemClick"
+                    ItemsSource="{x:Bind ViewModel.Layers, Mode=OneWay}"
+                    SelectionMode="Single">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,0,0,8">
+                                <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <TextBox
+                    Header="Layer Name"
+                    Text="{x:Bind ViewModel.SelectedLayerName, Mode=TwoWay}"
+                    Visibility="{x:Bind ViewModel.HasSelectedLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Visibility="{x:Bind ViewModel.HasSelectedLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                    <NumberBox Header="X" Value="{x:Bind ViewModel.SelectedLayerX, Mode=TwoWay}" />
+                    <NumberBox Grid.Column="1" Header="Y" Value="{x:Bind ViewModel.SelectedLayerY, Mode=TwoWay}" />
+                </Grid>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Visibility="{x:Bind ViewModel.HasSelectedLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                    <NumberBox Header="Width" Value="{x:Bind ViewModel.SelectedLayerWidth, Mode=TwoWay}" />
+                    <NumberBox Grid.Column="1" Header="Height" Value="{x:Bind ViewModel.SelectedLayerHeight, Mode=TwoWay}" />
+                </Grid>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Visibility="{x:Bind ViewModel.HasSelectedLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                    <NumberBox Header="Rotation" Value="{x:Bind ViewModel.SelectedLayerRotation, Mode=TwoWay}" />
+                    <NumberBox Grid.Column="1" Header="Opacity" Minimum="0" Maximum="1" SmallChange="0.05" Value="{x:Bind ViewModel.SelectedLayerOpacity, Mode=TwoWay}" />
+                </Grid>
+
+                <TextBlock
+                    FontWeight="SemiBold"
+                    Text="Text Layer"
+                    Visibility="{x:Bind ViewModel.HasSelectedTextLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                <TextBox
+                    Header="Content"
+                    AcceptsReturn="True"
+                    MinHeight="96"
+                    Text="{x:Bind ViewModel.SelectedTextContent, Mode=TwoWay}"
+                    TextWrapping="Wrap"
+                    Visibility="{x:Bind ViewModel.HasSelectedTextLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                <TextBox
+                    Header="Text Source"
+                    Text="{x:Bind ViewModel.SelectedTextBindingRole, Mode=TwoWay}"
+                    Visibility="{x:Bind ViewModel.HasSelectedTextLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                <TextBox
+                    Header="Font Family"
+                    Text="{x:Bind ViewModel.SelectedTextFontFamily, Mode=TwoWay}"
+                    Visibility="{x:Bind ViewModel.HasSelectedTextLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                <NumberBox
+                    Header="Font Size"
+                    Value="{x:Bind ViewModel.SelectedTextFontSize, Mode=TwoWay}"
+                    Visibility="{x:Bind ViewModel.HasSelectedTextLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                <TextBox
+                    Header="Text Color"
+                    Text="{x:Bind ViewModel.SelectedTextColor, Mode=TwoWay}"
+                    Visibility="{x:Bind ViewModel.HasSelectedTextLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+
+                <TextBlock
+                    FontWeight="SemiBold"
+                    Text="Shape Layer"
+                    Visibility="{x:Bind ViewModel.HasSelectedShapeLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                <ComboBox
+                    Header="Shape Type"
+                    ItemsSource="{x:Bind ViewModel.ShapeTypeOptions, Mode=OneWay}"
+                    SelectedItem="{x:Bind ViewModel.SelectedShapeType, Mode=TwoWay}"
+                    Visibility="{x:Bind ViewModel.HasSelectedShapeLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                <TextBox
+                    Header="Fill Color"
+                    Text="{x:Bind ViewModel.SelectedShapeFillColor, Mode=TwoWay}"
+                    Visibility="{x:Bind ViewModel.HasSelectedShapeLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                <TextBox
+                    Header="Stroke Color"
+                    Text="{x:Bind ViewModel.SelectedShapeStrokeColor, Mode=TwoWay}"
+                    Visibility="{x:Bind ViewModel.HasSelectedShapeLayer, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+            </StackPanel>
+        </ScrollViewer>
+        </Grid>
+    </NavigationView>
+</Page>

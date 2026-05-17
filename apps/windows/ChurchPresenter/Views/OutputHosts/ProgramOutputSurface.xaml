@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="ChurchPresenter.Views.ProgramOutputSurface"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:ChurchPresenter.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:ChurchPresenter.Views"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    x:DataType="local:ProgramOutputSurface"
+    mc:Ignorable="d">
+
+    <Viewbox
+        HorizontalAlignment="Stretch"
+        VerticalAlignment="Stretch"
+        Stretch="{x:Bind ViewModel.OutputStageStretch, Mode=OneWay}">
+        <Grid
+            Width="{x:Bind ViewModel.FrameWidth, Mode=OneWay}"
+            Height="{x:Bind ViewModel.FrameHeight, Mode=OneWay}"
+            Background="Black">
+            <controls:LiveOutputSurface
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                PlaybackRegistrationMode="{x:Bind PlaybackRegistrationMode, Mode=OneWay}"
+                Scene="{x:Bind ViewModel.Scene, Mode=OneWay}" />
+        </Grid>
+    </Viewbox>
+</UserControl>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="PathRequired" xml:space="preserve">
+    <value>Path is required.</value>
+  </data>
+  <data name="InvalidPath" xml:space="preserve">
+    <value>Invalid path.</value>
+  </data>
+  <data name="MissingBundleFile" xml:space="preserve">
+    <value>Missing file in bundle: {0}</value>
+  </data>
+  <data name="InvalidManifest" xml:space="preserve">
+    <value>Invalid bundle: manifest must include formatVersion and presentationId.</value>
+  </data>
+</root>

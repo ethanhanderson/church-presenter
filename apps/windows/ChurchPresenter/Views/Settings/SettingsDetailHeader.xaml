@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="ChurchPresenter.Views.SettingsDetailHeader"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:ChurchPresenter.Views"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    x:DataType="local:SettingsDetailHeader"
+    x:Name="Root"
+    HorizontalAlignment="Stretch"
+    d:DesignHeight="48"
+    d:DesignWidth="800"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <!--
+          No Fluent HyperlinkButton chrome: default template paints a fill on PointerOver/Pressed.
+          Flat ContentPresenter + TemplateBinding Foreground only so hover is text color alone.
+        -->
+        <Style x:Key="SettingsHeaderParentLinkStyle" TargetType="HyperlinkButton">
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="28" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="UseSystemFocusVisuals" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="HyperlinkButton">
+                        <ContentPresenter
+                            x:Name="ContentPresenter"
+                            Padding="{TemplateBinding Padding}"
+                            HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            AutomationProperties.AccessibilityView="Raw"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                            ContentTransitions="{TemplateBinding ContentTransitions}"
+                            Foreground="{TemplateBinding Foreground}" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid ColumnSpacing="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <HyperlinkButton
+            x:Name="ParentLink"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            AutomationProperties.Name="{x:Bind ParentSegmentText, Mode=OneWay}"
+            Click="ParentLink_Click"
+            Content="{x:Bind ParentSegmentText, Mode=OneWay}"
+            Style="{StaticResource SettingsHeaderParentLinkStyle}" />
+
+        <!-- ChevronRight (Segoe Fluent Icons): compact; Semibold reads slightly heavier than default. -->
+        <FontIcon
+            Grid.Column="1"
+            VerticalAlignment="Center"
+            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+            FontSize="14"
+            FontWeight="SemiBold"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Glyph="&#xE76C;"
+            IsHitTestVisible="False"
+            AutomationProperties.AccessibilityView="Raw" />
+
+        <TextBlock
+            Grid.Column="2"
+            VerticalAlignment="Center"
+            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+            Style="{StaticResource TitleTextBlockStyle}"
+            Text="{x:Bind CurrentSegmentText, Mode=OneWay}"
+            TextTrimming="CharacterEllipsis"
+            TextWrapping="NoWrap" />
+    </Grid>
+</UserControl>

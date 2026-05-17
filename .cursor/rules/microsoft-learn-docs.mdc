@@ -1,0 +1,32 @@
+---
+description: 
+alwaysApply: true
+---
+
+# Microsoft Learn MCP (church-presenter)
+
+For **Microsoft, Azure, .NET, Windows, and WinUI** documentation, setup, APIs, and official code samples, use the **Microsoft Learn MCP** tools. They read **first-party Microsoft Learn** content.
+
+## Tools (in order)
+
+1. **`microsoft_docs_search`** — Search official docs; use first for breadth (titles, excerpts, URLs).
+2. **`microsoft_code_sample_search`** — Official snippets and examples; use when generating or validating **Microsoft-related** code. Pass `language` when helpful (e.g. `csharp`).
+3. **`microsoft_docs_fetch`** — Full page as markdown; use after search when you need complete procedures, troubleshooting, or a referenced page is clearly high-value.
+
+Follow the pattern: search → optional code-sample search → fetch URLs when excerpts are not enough.
+
+## Repo → query hints
+
+| Area | Example search themes |
+|---|---|
+| `apps/windows/**`, WinUI tests | WinUI 3, XAML, `Microsoft.UI.Xaml`, Windows App SDK, WinRT, app lifecycle, packaging |
+| `tests/**/*.cs` | xUnit, .NET testing, assertions |
+| C# / BCL / `Microsoft.Extensions.*` | .NET docs topic, namespace, or API name |
+
+Include **product/version** in the query when the user specifies it (e.g. .NET 9, Windows App SDK 1.5).
+
+## Context7 MCP — do not use for this stack
+
+**Do not** use **Context7** (`resolve-library-id`, `query-docs`, etc.) for Microsoft, Azure, .NET, or WinUI documentation in this workspace. Context7 aggregates third-party mirrors; for this project it is **less accurate and less useful** than the Microsoft Learn MCP tools for correct APIs, versioning, and official samples.
+
+For **non-Microsoft** libraries, prefer official upstream docs or targeted web search—not Context7—as the default when Microsoft Learn does not apply.
