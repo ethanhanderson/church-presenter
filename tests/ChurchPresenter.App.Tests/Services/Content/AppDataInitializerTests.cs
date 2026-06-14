@@ -86,8 +86,8 @@ public sealed class AppDataInitializerTests
 
         File.Exists(paths.Object.GetLibrariesIndexPath()).Should().BeTrue();
         File.Exists(paths.Object.GetPlaylistsIndexPath()).Should().BeTrue();
-        File.ReadAllText(paths.Object.GetLibraryManifestPath("library-1")).Should().Contain("Songs");
-        File.ReadAllText(paths.Object.GetPlaylistManifestPath("playlist-1")).Should().Contain("Sunday");
+        File.ReadAllText(paths.Object.GetLibraryManifestPath("Songs")).Should().Contain("Songs");
+        File.ReadAllText(paths.Object.GetPlaylistManifestPath("Sunday")).Should().Contain("Sunday");
         File.Exists(paths.Object.GetLibrariesJsonPath()).Should().BeFalse();
         File.Exists(paths.Object.GetPlaylistsJsonPath()).Should().BeFalse();
     }
@@ -122,8 +122,8 @@ public sealed class AppDataInitializerTests
         await initializer.InitializeAsync();
 
         File.Exists(paths.Object.GetLibrariesIndexPath()).Should().BeTrue();
-        File.Exists(paths.Object.GetLibraryManifestPath("legacy-lib")).Should().BeTrue();
-        File.ReadAllText(paths.Object.GetLibraryManifestPath("legacy-lib")).Should().Contain("From Legacy");
+        File.Exists(paths.Object.GetLibraryManifestPath("From Legacy")).Should().BeTrue();
+        File.ReadAllText(paths.Object.GetLibraryManifestPath("From Legacy")).Should().Contain("From Legacy");
     }
 
     [Fact]

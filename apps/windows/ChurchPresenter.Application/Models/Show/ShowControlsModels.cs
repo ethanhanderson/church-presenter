@@ -21,9 +21,22 @@ public sealed record ShowControlsSnapshot
 
     public IReadOnlyList<ShowMessagePanelItem> Messages { get; init; } = Array.Empty<ShowMessagePanelItem>();
 
+    public IReadOnlyList<ShowCollectionPanelItem> PropCollections { get; init; } = Array.Empty<ShowCollectionPanelItem>();
+
     public IReadOnlyList<ShowPropPanelItem> Props { get; init; } = Array.Empty<ShowPropPanelItem>();
 
+    public IReadOnlyList<ShowCollectionPanelItem> MacroCollections { get; init; } = Array.Empty<ShowCollectionPanelItem>();
+
     public IReadOnlyList<ShowMacroPanelItem> Macros { get; init; } = Array.Empty<ShowMacroPanelItem>();
+}
+
+public sealed record ShowCollectionPanelItem
+{
+    public string Id { get; init; } = string.Empty;
+
+    public string Name { get; init; } = string.Empty;
+
+    public int Count { get; init; }
 }
 
 public sealed record ShowAudioPlaylistPanelItem
@@ -54,6 +67,8 @@ public sealed record ShowAudioCuePanelItem
     public string AudioKind { get; init; } = "track";
 
     public string DurationLabel { get; init; } = string.Empty;
+
+    public double FadeInSeconds { get; init; } = 0.5;
 }
 
 public sealed record ShowStageScreenPanelItem
@@ -118,11 +133,15 @@ public sealed record ShowPropPanelItem
 
     public string Name { get; init; } = string.Empty;
 
+    public string? CollectionId { get; init; }
+
     public string? AssetReference { get; init; }
 
     public string? Text { get; init; }
 
     public bool IsVisible { get; init; }
+
+    public double DissolveSeconds { get; init; } = 0.3;
 }
 
 public sealed record ShowMacroPanelItem

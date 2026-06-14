@@ -27,4 +27,13 @@ public interface ICuePreparationService
 
     /// <summary>Resolves a media library item into a prepared media cue.</summary>
     PreparedMediaCue? PrepareMediaCue(MediaLibraryItem item);
+
+    /// <summary>
+    /// Builds a slide cue from an explicit slide snapshot (for example Quick Edit preview) without caching it.
+    /// </summary>
+    Task<PreparedSlideCue?> PreparePreviewSlideCueAsync(
+        PresentationDocument document,
+        PresentationSlide slide,
+        string? instanceKey = null,
+        CancellationToken cancellationToken = default);
 }

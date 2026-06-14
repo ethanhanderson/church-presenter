@@ -1,6 +1,5 @@
 using System.IO;
 
-
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 
@@ -13,8 +12,7 @@ namespace ChurchPresenter.Adapters.Media;
 
 /// <summary>
 /// Loads thumbnail-sized image sources for media files shown in WinUI chrome surfaces.
-/// Prefers real file pixels for photos and real preview frames for video assets, while still using
-/// Windows shell thumbnails when they provide a richer preview than a generic file icon.
+/// Prefers Windows shell/cache thumbnails, then falls back to type-specific decoding.
 /// </summary>
 internal static class MediaThumbnailLoader
 {
@@ -64,7 +62,23 @@ internal static class MediaThumbnailLoader
         {
             var file = await StorageFile.GetFileFromPathAsync(fullPath);
 
-            // Raster photos should show the file itself, not a shell-generated proxy, when we can decode it.
+            if (string.Equals(effective, "video", StringComparison.OrdinalIgnoreCase))
+            {
+                var primaryVideoThumbnail = await TryLoadPrimaryVideoThumbnailAsync(file, requestedSize);
+                if (primaryVideoThumbnail != null)
+                    return new ThumbnailLoadResult(primaryVideoThumbnail, null, null);
+
+                var firstFrame = await TryLoadVideoFrameAsync(file, requestedSize);
+                if (firstFrame != null)
+                    return new ThumbnailLoadResult(firstFrame, null, null);
+
+                return new ThumbnailLoadResult(null, ContentAccessFailureKind.Unavailable, "No usable video thumbnail provider returned an image.");
+            }
+
+            var thumbnail = await TryLoadFromWindowsThumbnailApisAsync(file, effective, requestedSize);
+            if (thumbnail != null)
+                return new ThumbnailLoadResult(thumbnail, null, null);
+
             if (isImageType && IsLikelyDecodeFriendlyRasterImage(fullPath))
             {
                 try
@@ -73,19 +87,8 @@ internal static class MediaThumbnailLoader
                 }
                 catch
                 {
-                    // Corrupt or unsupported decode — try shell thumbnails below.
+                    // Corrupt or unsupported decode — try any remaining media-specific fallback below.
                 }
-            }
-
-            var thumbnail = await TryLoadFromWindowsThumbnailApisAsync(file, effective, requestedSize);
-            if (thumbnail != null)
-                return new ThumbnailLoadResult(thumbnail, null, null);
-
-            if (string.Equals(effective, "video", StringComparison.OrdinalIgnoreCase))
-            {
-                var firstFrame = await TryLoadVideoFrameAsync(file, requestedSize);
-                if (firstFrame != null)
-                    return new ThumbnailLoadResult(firstFrame, null, null);
             }
 
             // e.g. HEIC or other types catalogued as image where the shell had no Image thumbnail.
@@ -105,11 +108,32 @@ internal static class MediaThumbnailLoader
     /// <summary>Thumbnail option sets to try; shell behavior varies by codec/container.</summary>
     private static readonly ThumbnailOptions[] ThumbnailOptionAttempts =
     {
-        ThumbnailOptions.UseCurrentScale | ThumbnailOptions.ResizeThumbnail,
         ThumbnailOptions.UseCurrentScale,
         ThumbnailOptions.ResizeThumbnail,
         ThumbnailOptions.None,
     };
+
+    private static async Task<BitmapImage?> TryLoadPrimaryVideoThumbnailAsync(
+        StorageFile file,
+        uint requestedSize)
+    {
+        try
+        {
+            var shell = await TryLoadFromShellThumbnailAsync(
+                file,
+                ThumbnailMode.SingleItem,
+                requestedSize,
+                ThumbnailOptions.UseCurrentScale);
+            if (shell != null)
+                return shell;
+        }
+        catch
+        {
+            // Go directly to video first-frame extraction when the shell provider cannot decode this file.
+        }
+
+        return null;
+    }
 
     private static async Task<BitmapImage?> TryLoadFromWindowsThumbnailApisAsync(
         StorageFile file,
@@ -120,13 +144,13 @@ internal static class MediaThumbnailLoader
         {
             foreach (var options in ThumbnailOptionAttempts)
             {
-                var scaled = await TryLoadFromScaledThumbnailAsync(file, mode, requestedSize, options);
-                if (scaled != null)
-                    return scaled;
-
                 var shell = await TryLoadFromShellThumbnailAsync(file, mode, requestedSize, options);
                 if (shell != null)
                     return shell;
+
+                var scaled = await TryLoadFromScaledThumbnailAsync(file, mode, requestedSize, options);
+                if (scaled != null)
+                    return scaled;
             }
         }
 
@@ -138,8 +162,8 @@ internal static class MediaThumbnailLoader
         switch (effective.ToLowerInvariant())
         {
             case "video":
-                yield return ThumbnailMode.VideosView;
                 yield return ThumbnailMode.SingleItem;
+                yield return ThumbnailMode.VideosView;
                 yield return ThumbnailMode.PicturesView;
                 yield break;
             case "audio":
@@ -202,14 +226,25 @@ internal static class MediaThumbnailLoader
 
         using (thumbnail)
         {
-            var bitmap = new BitmapImage
-            {
-                DecodePixelWidth = (int)requestedSize,
-                DecodePixelHeight = (int)requestedSize,
-            };
+            var bitmap = CreateAspectPreservingBitmap(thumbnail.OriginalWidth, thumbnail.OriginalHeight, requestedSize);
             await bitmap.SetSourceAsync(thumbnail);
             return bitmap;
         }
+    }
+
+    private static BitmapImage CreateAspectPreservingBitmap(uint originalWidth, uint originalHeight, uint requestedSize)
+    {
+        var bitmap = new BitmapImage();
+        if (originalHeight > originalWidth)
+        {
+            bitmap.DecodePixelHeight = (int)requestedSize;
+        }
+        else
+        {
+            bitmap.DecodePixelWidth = (int)requestedSize;
+        }
+
+        return bitmap;
     }
 
     private static async Task<BitmapImage?> TryLoadVideoFrameAsync(StorageFile file, uint requestedSize)
@@ -227,10 +262,7 @@ internal static class MediaThumbnailLoader
         if (thumbnail == null || thumbnail.Size == 0)
             return null;
 
-        var bitmap = new BitmapImage
-        {
-            DecodePixelWidth = (int)requestedSize,
-        };
+        var bitmap = new BitmapImage { DecodePixelWidth = (int)requestedSize };
         await bitmap.SetSourceAsync(thumbnail);
         return bitmap;
     }
@@ -238,11 +270,7 @@ internal static class MediaThumbnailLoader
     private static async Task<BitmapImage?> TryDecodeImageFromFileAsync(StorageFile file, uint requestedSize)
     {
         using IRandomAccessStream stream = await file.OpenAsync(FileAccessMode.Read);
-        var bitmap = new BitmapImage
-        {
-            DecodePixelWidth = (int)requestedSize,
-            DecodePixelHeight = (int)requestedSize,
-        };
+        var bitmap = new BitmapImage { DecodePixelWidth = (int)requestedSize };
         await bitmap.SetSourceAsync(stream);
         return bitmap;
     }

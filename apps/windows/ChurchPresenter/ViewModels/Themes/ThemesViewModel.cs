@@ -443,39 +443,52 @@ public partial class ThemesViewModel : ObservableObject
 
     public async Task InitializeAsync()
     {
-        await _workspace.LoadAsync().ConfigureAwait(true);
-
-        var themes = await _themeLibrary.LoadAsync().ConfigureAwait(true);
-        Themes.Clear();
-        foreach (var theme in themes)
-            Themes.Add(theme);
-
-        SelectedTheme = Themes.FirstOrDefault();
-        SelectThemeSlideById(SelectedTheme?.Slides.FirstOrDefault()?.Id);
-
-        var activeProject = _activePresentation.CurrentProject;
-        _currentPresentationPath = _activePresentation.CurrentPath
-            ?? activeProject?.SourcePath
-            ?? _workspace.Workspace.SelectedPresentationPath;
-        if (activeProject != null)
+        try
         {
-            CurrentPresentation = PresentationModelUtilities.CloneProject(activeProject);
-            SelectedSourceSlide = SourceSlides.FirstOrDefault();
+            await _workspace.LoadAsync().ConfigureAwait(true);
+
+            var themes = await _themeLibrary.LoadAsync().ConfigureAwait(true);
+            Themes.Clear();
+            foreach (var theme in themes)
+                Themes.Add(theme);
+
+            SelectedTheme = Themes.FirstOrDefault();
+            SelectThemeSlideById(SelectedTheme?.Slides.FirstOrDefault()?.Id);
+
+            var activeProject = _activePresentation.CurrentProject;
+            _currentPresentationPath = _activePresentation.CurrentPath
+                ?? activeProject?.SourcePath
+                ?? _workspace.Workspace.SelectedPresentationPath;
+            if (activeProject != null)
+            {
+                CurrentPresentation = PresentationModelUtilities.CloneProject(activeProject);
+                SelectedSourceSlide = SourceSlides.FirstOrDefault();
+            }
+            else if (!string.IsNullOrWhiteSpace(_currentPresentationPath))
+            {
+                CurrentPresentation = _projects.Open(_currentPresentationPath);
+                SelectedSourceSlide = SourceSlides.FirstOrDefault();
+            }
+            else
+            {
+                CurrentPresentation = null;
+                SelectedSourceSlide = null;
+            }
+
+            StatusMessage = Themes.Count == 0
+                ? "Create a theme or import a slide from the open presentation."
+                : $"Loaded {Themes.Count} theme(s)";
         }
-        else if (!string.IsNullOrWhiteSpace(_currentPresentationPath))
+        catch (Exception ex)
         {
-            CurrentPresentation = _projects.Open(_currentPresentationPath);
-            SelectedSourceSlide = SourceSlides.FirstOrDefault();
-        }
-        else
-        {
+            // A corrupt theme library or presentation must not crash the Theme Library on navigation;
+            // reset to a safe empty state and surface the failure rather than auto-saving over good data.
+            _logger.LogError(ex, "Theme Library failed to initialize.");
             CurrentPresentation = null;
             SelectedSourceSlide = null;
+            IsDirty = false;
+            StatusMessage = $"Theme Library could not load: {ex.Message}";
         }
-
-        StatusMessage = Themes.Count == 0
-            ? "Create a theme or import a slide from the open presentation."
-            : $"Loaded {Themes.Count} theme(s)";
     }
 
     public void SelectThemeById(string? themeId)
@@ -693,6 +706,25 @@ public partial class ThemesViewModel : ObservableObject
         IsDirty = false;
         StatusMessage = $"Saved {Themes.Count} theme(s)";
         OnPropertyChanged(nameof(SaveStateLabel));
+    }
+
+    /// <summary>
+    /// Immediately persists any pending (debounced) theme-library edits. Called when leaving the Theme
+    /// Library so a queued auto-save cannot land after a fresh view model has already reloaded the library.
+    /// </summary>
+    public async Task FlushPendingSaveAsync()
+    {
+        if (!IsDirty)
+            return;
+
+        try
+        {
+            await SaveLibraryAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Theme library flush-on-navigation failed.");
+        }
     }
 
     [RelayCommand]

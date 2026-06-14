@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:views="using:ChurchPresenter.Views"
     mc:Ignorable="d"
     Title="Church Presenter">
 
@@ -126,7 +127,7 @@
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
                         Spacing="8">
-                        <Button
+                        <ToggleButton
                             x:Name="MediaPanelToggleButton"
                             MinHeight="44"
                             MinWidth="0"
@@ -135,9 +136,22 @@
                             AutomationProperties.AutomationId="MediaPanelToggleButton"
                             AutomationProperties.Name="Media panel"
                             Click="MediaPanelToggle_Click"
-                            Style="{ThemeResource SubtleButtonStyle}"
                             ToolTipService.ToolTip="Media panel"
                             Visibility="Collapsed">
+                            <ToggleButton.Resources>
+                                <StaticResource x:Key="ToggleButtonBackground" ResourceKey="SubtleButtonBackground" />
+                                <StaticResource x:Key="ToggleButtonBackgroundPointerOver" ResourceKey="SubtleButtonBackgroundPointerOver" />
+                                <StaticResource x:Key="ToggleButtonBackgroundPressed" ResourceKey="SubtleButtonBackgroundPressed" />
+                                <StaticResource x:Key="ToggleButtonBackgroundDisabled" ResourceKey="SubtleButtonBackgroundDisabled" />
+                                <StaticResource x:Key="ToggleButtonForeground" ResourceKey="SubtleButtonForeground" />
+                                <StaticResource x:Key="ToggleButtonForegroundPointerOver" ResourceKey="SubtleButtonForegroundPointerOver" />
+                                <StaticResource x:Key="ToggleButtonForegroundPressed" ResourceKey="SubtleButtonForegroundPressed" />
+                                <StaticResource x:Key="ToggleButtonForegroundDisabled" ResourceKey="SubtleButtonForegroundDisabled" />
+                                <StaticResource x:Key="ToggleButtonBorderBrush" ResourceKey="SubtleButtonBorderBrush" />
+                                <StaticResource x:Key="ToggleButtonBorderBrushPointerOver" ResourceKey="SubtleButtonBorderBrushPointerOver" />
+                                <StaticResource x:Key="ToggleButtonBorderBrushPressed" ResourceKey="SubtleButtonBorderBrushPressed" />
+                                <StaticResource x:Key="ToggleButtonBorderBrushDisabled" ResourceKey="SubtleButtonBorderBrushDisabled" />
+                            </ToggleButton.Resources>
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon
                                     FontFamily="{ThemeResource SymbolThemeFontFamily}"
@@ -145,7 +159,7 @@
                                     Glyph="&#xE714;" />
                                 <TextBlock VerticalAlignment="Center" Text="Media" />
                             </StackPanel>
-                        </Button>
+                        </ToggleButton>
 
                         <Button
                             x:Name="LooksTitleButton"
@@ -229,9 +243,23 @@
             </TitleBar.RightHeader>
         </TitleBar>
 
+        <!--
+            Row 1 layers, bottom to top: canonical-render anchor, content Frame (all top-level pages).
+        -->
+        <Grid
+            x:Name="ProgramRenderAnchor"
+            Grid.Row="1"
+            Opacity="0"
+            IsHitTestVisible="False" />
         <Frame
             x:Name="ContentFrame"
             Grid.Row="1"
             Background="Transparent" />
+        <!-- Shell-hosted operator preview mirror (above ContentFrame; never on cached Show page). -->
+        <Canvas
+            x:Name="OperatorPreviewOverlayHost"
+            Grid.Row="1"
+            IsHitTestVisible="False"
+            Visibility="Collapsed" />
     </Grid>
 </Window>

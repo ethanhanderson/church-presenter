@@ -18,6 +18,9 @@ public interface ICpresDocumentService
     /// <param name="path">Destination path.</param>
     /// <param name="state">Content to serialize.</param>
     void Save(string path, BundleSaveState state);
+
+    /// <summary>Rewrites a bundle for portable export with optional media, font, and theme stripping.</summary>
+    void Export(string sourcePath, string destinationPath, CpresBundleExportOptions options);
 }
 
 /// <summary>
@@ -40,5 +43,13 @@ public sealed class CpresDocumentService(ILogger<CpresDocumentService> logger) :
         ArgumentNullException.ThrowIfNull(state);
         _logger.LogTrace("Saving cpres bundle {Path}.", path);
         CpresBundleWriter.Save(path, state);
+    }
+
+    /// <inheritdoc />
+    public void Export(string sourcePath, string destinationPath, CpresBundleExportOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        _logger.LogTrace("Exporting cpres bundle {Source} to {Destination}.", sourcePath, destinationPath);
+        CpresBundleExporter.Export(sourcePath, destinationPath, options);
     }
 }

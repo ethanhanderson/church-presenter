@@ -94,7 +94,7 @@ public sealed class ShowConfig
 
     /// <summary>When true, slide thumbnails use the custom colour and opacity; when false, checkerboard for transparent slide backgrounds.</summary>
     [JsonPropertyName("transparentThumbnailBackgroundEnabled")]
-    public bool TransparentThumbnailBackgroundEnabled { get; set; } = true;
+    public bool TransparentThumbnailBackgroundEnabled { get; set; }
 
     [JsonPropertyName("transparentThumbnailColor")]
     public string TransparentThumbnailColor { get; set; } = "#000000";
@@ -114,6 +114,10 @@ public sealed class ShowConfig
     /// <summary>Number of seconds the media transport seek buttons move backward or forward.</summary>
     [JsonPropertyName("mediaSeekSeconds")]
     public int MediaSeekSeconds { get; set; } = 5;
+
+    /// <summary>Idle layer clear button look: "disabledAccent" | "transparent" | "controlFill".</summary>
+    [JsonPropertyName("outputClearInactiveAppearance")]
+    public string OutputClearInactiveAppearance { get; set; } = "disabledAccent";
 
     [JsonPropertyName("timers")]
     public List<ShowTimerDefinition> Timers { get; set; } = new();
@@ -150,9 +154,17 @@ public sealed class ShowConfig
     [JsonPropertyName("props")]
     public List<ShowPropDefinition> Props { get; set; } = new();
 
+    /// <summary>Portable collections used to organize Props in Show Controls.</summary>
+    [JsonPropertyName("propCollections")]
+    public List<ShowControlCollectionDefinition> PropCollections { get; set; } = new();
+
     /// <summary>Reusable macro definitions stored as portable production setup.</summary>
     [JsonPropertyName("macros")]
     public List<ShowMacroDefinition> Macros { get; set; } = new();
+
+    /// <summary>Portable collections used to organize Macros in Show Controls.</summary>
+    [JsonPropertyName("macroCollections")]
+    public List<ShowControlCollectionDefinition> MacroCollections { get; set; } = new();
 
     /// <summary>Reusable audio playlists and folders for the Audio Bin.</summary>
     [JsonPropertyName("audioPlaylists")]
@@ -181,6 +193,18 @@ public sealed class ShowAudioPlaylistDefinition
 
     [JsonPropertyName("transitionSeconds")]
     public double TransitionSeconds { get; set; } = 0.5;
+}
+
+/// <summary>
+/// Shared collection definition for Show Controls assets such as Props and Macros.
+/// </summary>
+public sealed class ShowControlCollectionDefinition
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -258,6 +282,9 @@ public sealed class ShowPropDefinition
 
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("collectionId")]
+    public string? CollectionId { get; set; }
 
     [JsonPropertyName("assetReference")]
     public string? AssetReference { get; set; }

@@ -1,0 +1,40 @@
+---
+description: Skip continual-learning and AGENTS.md mining in Plan or Debug mode
+alwaysApply: true
+---
+
+# Continual learning — mode guard
+
+Do **not** run the continual-learning flow while the session is in **Plan mode** or **Debug mode**.
+
+## What this blocks
+
+- The `continual-learning` skill and `agents-memory-updater` subagent
+- Mining agent transcripts to add, update, or remove bullets in `AGENTS.md`
+- Stop-hook followup messages that ask to run continual learning (from the continual-learning plugin)
+- User requests such as `/continual-learning` or “mine chats / update AGENTS.md” **unless** the session is in **Agent mode**
+
+## What to do instead
+
+In Plan or Debug mode, **decline and defer**:
+
+1. Do not launch `agents-memory-updater` or edit `AGENTS.md` for learned preferences/facts.
+2. Reply briefly that continual learning is skipped in this mode because debugging and planning sessions produce transient hypotheses, workarounds, and repro steps—not durable repo conventions.
+3. If the user wants memory updated, ask them to switch to **Agent mode** and run continual learning there (or run it at the end of a feature/fix session, not mid-debug).
+
+## When it is allowed
+
+Run continual learning only in **Agent mode**, and only when:
+
+- The user explicitly asks, or
+- A stop-hook followup requests it and the session is in Agent mode
+
+## Quality bar (Agent mode only)
+
+When continual learning does run, prefer **removing** debugging-derived bullets over adding new ones. Do not persist:
+
+- One-off crash repro paths, temporary workarounds, or “while debugging we…” conclusions
+- Verification shortcuts that belong in skills/rules (for example winapp MCP guidance)
+- Implementation details already encoded in code unless they are stable product behavior
+
+Keep durable layout, build/verification workflow, and intentional product semantics.

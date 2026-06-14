@@ -21,7 +21,7 @@ internal static class ViewRegistration
 
     internal static IServiceCollection AddAppPages(this IServiceCollection services)
     {
-        foreach (Type pageType in AppNavigationRoute.ActivePageTypes)
+        foreach (Type pageType in ShellNavigation.Route.ActivePageTypes)
             services.AddTransient(pageType);
 
         return services;

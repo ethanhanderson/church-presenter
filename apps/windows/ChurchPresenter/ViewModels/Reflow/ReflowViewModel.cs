@@ -4,6 +4,9 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+
 namespace ChurchPresenter.ViewModels;
 
 public partial class ReflowViewModel : ObservableObject
@@ -152,22 +155,35 @@ public partial class ReflowViewModel : ObservableObject
 
     public async Task InitializeAsync()
     {
-        await _workspace.LoadAsync().ConfigureAwait(true);
-        await _settings.LoadAsync().ConfigureAwait(true);
-        await LoadThemesAsync().ConfigureAwait(true);
-
-        var activeProject = _activePresentation.CurrentProject;
-        var activePath = _activePresentation.CurrentPath ?? activeProject?.SourcePath;
-        if (activeProject != null && !string.IsNullOrWhiteSpace(activePath))
+        try
         {
-            LoadProject(PresentationModelUtilities.CloneProject(activeProject), activePath);
-            return;
-        }
+            await _workspace.LoadAsync().ConfigureAwait(true);
+            await _settings.LoadAsync().ConfigureAwait(true);
+            await LoadThemesAsync().ConfigureAwait(true);
 
-        Project = null;
-        Slides.Clear();
-        SelectedSlideItem = null;
-        StatusMessage = "Open a presentation from Show to review it in Reflow.";
+            var activeProject = _activePresentation.CurrentProject;
+            var activePath = _activePresentation.CurrentPath ?? activeProject?.SourcePath;
+            if (activeProject != null && !string.IsNullOrWhiteSpace(activePath))
+            {
+                LoadProject(PresentationModelUtilities.CloneProject(activeProject), activePath);
+                return;
+            }
+
+            Project = null;
+            Slides.Clear();
+            SelectedSlideItem = null;
+            StatusMessage = "Open a presentation from Show to review it in Reflow.";
+        }
+        catch (Exception ex)
+        {
+            // A corrupt presentation/workspace must not crash Reflow on navigation; reset to a safe empty
+            // state and surface the failure instead of letting the async-void Loaded handler throw.
+            Project = null;
+            Slides.Clear();
+            SelectedSlideItem = null;
+            IsDirty = false;
+            StatusMessage = $"Reflow could not load the presentation: {ex.Message}";
+        }
     }
 
     public void SelectSlideById(string? slideId)
@@ -184,10 +200,16 @@ public partial class ReflowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task SaveAsync()
+    private async Task SaveAsync() => await SaveCoreAsync().ConfigureAwait(true);
+
+    private async Task<bool> SaveCoreAsync()
     {
         if (Project == null || string.IsNullOrWhiteSpace(_currentPath))
-            return;
+        {
+            // Nothing loaded to persist; allow navigation to proceed.
+            IsDirty = false;
+            return true;
+        }
 
         Project.Manifest.UpdatedAt = DateTime.UtcNow.ToString("O");
         PresentationModelUtilities.ReconcileArrangement(Project);
@@ -197,6 +219,40 @@ public partial class ReflowViewModel : ObservableObject
         await _workspace.SaveAsync().ConfigureAwait(true);
         IsDirty = false;
         StatusMessage = $"Saved {Project.Manifest.Title}";
+        return true;
+    }
+
+    /// <summary>
+    /// Prompts to save pending Reflow edits before the operator leaves the workspace. Returns <c>true</c>
+    /// when navigation may proceed (saved or discarded) and <c>false</c> when the operator cancels.
+    /// Mirrors the editor guard so Reflow theme/layout changes are never lost silently on a page switch.
+    /// </summary>
+    public async Task<bool> ConfirmNavigateAwayAsync()
+    {
+        if (!IsDirty)
+            return true;
+
+        if (App.MainWindow?.Content is not FrameworkElement { XamlRoot: { } } root)
+            return true;
+
+        var dialog = new ContentDialog
+        {
+            Title = "Unsaved changes",
+            Content = "Save your Reflow changes before leaving?",
+            PrimaryButtonText = "Save",
+            SecondaryButtonText = "Discard",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = root.XamlRoot,
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+            return await SaveCoreAsync().ConfigureAwait(true);
+        if (result == ContentDialogResult.Secondary)
+            return true;
+
+        return false;
     }
 
     private void LoadProject(PresentationProject project, string? path)

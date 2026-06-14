@@ -1,8 +1,5 @@
 using ChurchPresenter.App.Tests.TestSupport;
-using ChurchPresenter.Backend.Commands;
 using ChurchPresenter.Backend.Overlays;
-using ChurchPresenter.Backend.Rendering;
-using ChurchPresenter.Backend.Stage;
 
 using FluentAssertions;
 
@@ -20,7 +17,7 @@ public sealed class ShowTimerServiceTests
         await paths.Object.EnsureDocumentsLayoutAsync();
 
         var settings = new SettingsService(paths.Object, new SharedConfigService(paths.Object, NullLogger<SharedConfigService>.Instance), new MachineStateService(paths.Object, NullLogger<MachineStateService>.Instance), NullLogger<SettingsService>.Instance);
-        var service = new ShowTimerService(settings, NullLogger<ShowTimerService>.Instance);
+        var service = new ShowTimerService(settings, NullLogger<ShowTimerService>.Instance, new FakeCueDispatcher());
 
         var timer = await service.SaveTimerAsync(new ShowTimerDefinition
         {
@@ -39,15 +36,15 @@ public sealed class ShowTimerServiceTests
     }
 
     [Fact]
-    public async Task ActivateTimer_publishes_generated_timer_snapshot_when_live_facade_is_available()
+    public async Task ActivateTimer_publishes_generated_timer_snapshot_when_cue_dispatcher_is_available()
     {
         var root = Path.Combine(Path.GetTempPath(), "church-presenter-tests", Guid.NewGuid().ToString("N"));
         var paths = TestContentPaths.Create(root);
         await paths.Object.EnsureDocumentsLayoutAsync();
 
         var settings = new SettingsService(paths.Object, new SharedConfigService(paths.Object, NullLogger<SharedConfigService>.Instance), new MachineStateService(paths.Object, NullLogger<MachineStateService>.Instance), NullLogger<SettingsService>.Instance);
-        FakeLiveProductionFacade liveProduction = new();
-        var service = new ShowTimerService(settings, NullLogger<ShowTimerService>.Instance, liveProduction);
+        FakeCueDispatcher cueDispatcher = new();
+        var service = new ShowTimerService(settings, NullLogger<ShowTimerService>.Instance, cueDispatcher);
         var timer = await service.SaveTimerAsync(new ShowTimerDefinition
         {
             Name = "Welcome Countdown",
@@ -56,12 +53,12 @@ public sealed class ShowTimerServiceTests
 
         service.ActivateTimer(timer.Id);
 
-        liveProduction.LastTimer.Should().NotBeNull();
-        liveProduction.LastTimer!.Id.Should().Be(timer.Id);
-        liveProduction.LastTimer.Name.Should().Be("Welcome Countdown");
-        liveProduction.LastTimer.Status.Should().Be(GeneratedTimerStatus.Running);
-        liveProduction.LastTimer.Remaining.Should().Be(TimeSpan.FromSeconds(90));
-        liveProduction.LastTimer.DisplayValue.Should().Be("01:30");
+        cueDispatcher.LastTimer.Should().NotBeNull();
+        cueDispatcher.LastTimer!.Id.Should().Be(timer.Id);
+        cueDispatcher.LastTimer.Name.Should().Be("Welcome Countdown");
+        cueDispatcher.LastTimer.Status.Should().Be(GeneratedTimerStatus.Running);
+        cueDispatcher.LastTimer.Remaining.Should().Be(TimeSpan.FromSeconds(90));
+        cueDispatcher.LastTimer.DisplayValue.Should().Be("01:30");
     }
 
     [Fact]
@@ -72,8 +69,8 @@ public sealed class ShowTimerServiceTests
         await paths.Object.EnsureDocumentsLayoutAsync();
 
         var settings = new SettingsService(paths.Object, new SharedConfigService(paths.Object, NullLogger<SharedConfigService>.Instance), new MachineStateService(paths.Object, NullLogger<MachineStateService>.Instance), NullLogger<SettingsService>.Instance);
-        FakeLiveProductionFacade liveProduction = new();
-        var service = new ShowTimerService(settings, NullLogger<ShowTimerService>.Instance, liveProduction);
+        FakeCueDispatcher cueDispatcher = new();
+        var service = new ShowTimerService(settings, NullLogger<ShowTimerService>.Instance, cueDispatcher);
         var timer = await service.SaveTimerAsync(new ShowTimerDefinition
         {
             Name = "Welcome Countdown",
@@ -83,64 +80,10 @@ public sealed class ShowTimerServiceTests
         service.ActivateTimer(timer.Id);
         service.ActivateTimer(null);
 
-        liveProduction.LastTimer.Should().NotBeNull();
-        liveProduction.LastTimer!.Id.Should().Be(timer.Id);
-        liveProduction.LastTimer.Status.Should().Be(GeneratedTimerStatus.Stopped);
-        liveProduction.LastTimer.Remaining.Should().Be(TimeSpan.Zero);
-        liveProduction.LastTimer.DisplayValue.Should().Be("00:00");
-    }
-
-    private sealed class FakeLiveProductionFacade : ILiveProductionFacade
-    {
-        public event EventHandler<LiveProductionChangedEventArgs>? Changed;
-
-        public LiveProductionSnapshot Current { get; } = LiveProductionSnapshot.Empty;
-
-        public TimerSnapshot? LastTimer { get; private set; }
-
-        public Task SetLookAsync(string lookId, CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public ActionResult SetOverlay(OverlayContentState overlay) => new() { Succeeded = true };
-
-        public ActionResult SetTimer(TimerSnapshot timer)
-        {
-            LastTimer = timer;
-            Changed?.Invoke(this, new LiveProductionChangedEventArgs { Snapshot = Current });
-            return new ActionResult { Succeeded = true };
-        }
-
-        public ActionResult SetCaptureSession(CaptureSessionState captureSession) => new() { Succeeded = true };
-
-        public void ReportOutputHostFeedback(OutputHostFrameFeedbackState feedback)
-        {
-        }
-
-        public void ReportMediaPlayerFailure(MediaPlayerFailureState failure)
-        {
-        }
-
-        public ActionResult ExecuteCommands(
-            IEnumerable<LiveCommand> commands,
-            LiveCommandSource? source = null,
-            string? macroId = null) => new() { Succeeded = true };
-
-        public ActionResult ExecuteMacro(LiveMacroDefinition macro, LiveCommandSource? source = null) =>
-            new() { Succeeded = true };
-
-        public ActionResult ClearGroup(string clearGroupId) => new() { Succeeded = true };
-
-        public ActionResult ClearLayers(IEnumerable<ChurchPresenter.Backend.Rendering.OutputLayerKind> layers) =>
-            new() { Succeeded = true };
-
-        public ActionResult ReleaseClearedLayers(IEnumerable<ChurchPresenter.Backend.Rendering.OutputLayerKind> layers) =>
-            new() { Succeeded = true };
-
-        public ActionResult SetStageLayout(
-            string screenId,
-            string stageLayoutId,
-            StageAudienceCommandMode deliveryMode = StageAudienceCommandMode.StageAndAudience)
-        {
-            return new ActionResult { Succeeded = true };
-        }
+        cueDispatcher.LastTimer.Should().NotBeNull();
+        cueDispatcher.LastTimer!.Id.Should().Be(timer.Id);
+        cueDispatcher.LastTimer.Status.Should().Be(GeneratedTimerStatus.Stopped);
+        cueDispatcher.LastTimer.Remaining.Should().Be(TimeSpan.Zero);
+        cueDispatcher.LastTimer.DisplayValue.Should().Be("00:00");
     }
 }

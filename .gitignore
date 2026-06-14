@@ -34,10 +34,18 @@ dist-ssr
 
 # Local scratch / temp
 .tmp/
-*.binlog
+build-out.txt
+.agent-build.log
 
-# Local scratch / temp
-.tmp/
+# Agent E2E run manifests, winapp layout, and debug-output logs
+.agent-logs/
 
-# Rust / Tauri (create-tauri-app layout: lockfile + target under src-tauri)
-legacy/tauri_old/src-tauri/target
+# Cursor — machine/session-local (do not commit)
+.cursor/plans/
+.cursor/hooks/state/
+
+# WinUI / MSBuild local diagnostic logs
+**/xaml-log.txt
+
+# WinApp / Windows MCP (large binary — install separately)
+mcp/Sbroenne.WindowsMcp.exe

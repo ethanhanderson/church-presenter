@@ -1,262 +1,384 @@
+#nullable enable
+
+
+
+using System.Collections.ObjectModel;
+
+using ChurchPresenter.Adapters.Rendering.Pipeline;
+using ChurchPresenter.Backend.Output;
+
+using ChurchPresenter.Backend.Pipeline.Routing;
+using ChurchPresenter.Backend.Rendering;
+using ChurchPresenter.Models.Output;
+using ChurchPresenter.Services.Pipeline;
+
+
 
 using CommunityToolkit.Mvvm.ComponentModel;
 
+
+
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Dispatching;
+
+
 
 namespace ChurchPresenter.ViewModels;
 
+
+
 /// <summary>
-/// Audience / fullscreen output surface — mirrors the adapted backend output snapshot exposed by
-/// <see cref="IOutputFrameFacade"/> while preserving the existing WinUI surface contract.
+/// Operator program preview surface backed by the unified output pipeline.
 /// </summary>
 public partial class OutputViewModel : ObservableObject
 {
-    private readonly IOutputFrameFacade _frames;
-    private OutputScene _scene = OutputScene.Empty;
-    private PresentationProject? _project;
-    private PresentationSlide? _currentSlide;
 
-    public OutputViewModel(IOutputFrameFacade frames)
-    {
-        _frames = frames ?? throw new ArgumentNullException(nameof(frames));
-        _frames.Changed += (_, args) => RefreshFromSnapshot(args.Snapshot);
-        RefreshFromSnapshot(_frames.Current);
-    }
+    private const double DefaultFrameWidth = 1920;
 
-    // Stores the last fully resolved frame so all output properties come from one
-    // consistent snapshot instead of mixing frame-resolved and raw engine-state data.
-    private RenderFrame _currentFrame = RenderFrame.Empty;
+    private const double DefaultFrameHeight = 1080;
 
-    private string _programTitle = "";
+
+
+    private readonly ILiveSessionQueryService _liveSession;
+
+    private readonly IProgramRenderService _renderService;
+
+    private readonly OperatorPreviewSession _previewSession;
+
+    private readonly CuePipelineRuntime? _pipeline;
+
+    private readonly DispatcherQueue? _dispatcherQueue;
+
+
+
+    private string _programTitle = string.Empty;
+
     private bool _isBlackout;
+
     private bool _isClear;
-    private bool _suppressPresentation;
-    private bool _suppressMedia;
-    private string? _screenId;
-    private bool _routesPresentation = true;
-    private bool _routesMedia = true;
-    private IReadOnlyList<OutputLayerRouteState> _layerRoutes = Array.Empty<OutputLayerRouteState>();
-    private OutputScreenDiagnostics? _screenDiagnostics;
 
-    [ObservableProperty]
-    private Stretch _outputStageStretch = Stretch.Uniform;
+    private FrameworkElement? _previewAnchor;
 
-    [ObservableProperty]
-    private string? _outputAspectRatioOverride;
+    private string? _selectedPreviewScreenId;
 
-    public string ProgramTitle
+
+
+    public OutputViewModel(
+
+        ILiveSessionQueryService liveSession,
+
+        IProgramRenderService renderService,
+
+        OperatorPreviewSession previewSession,
+
+        CuePipelineRuntime pipeline)
+
     {
-        get => _programTitle;
-        set => SetProperty(ref _programTitle, value);
+
+        _liveSession = liveSession ?? throw new ArgumentNullException(nameof(liveSession));
+
+        _renderService = renderService ?? throw new ArgumentNullException(nameof(renderService));
+
+        _previewSession = previewSession ?? throw new ArgumentNullException(nameof(previewSession));
+
+        _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
+
+        _dispatcherQueue = DispatcherQueue.GetForCurrentThread() ?? App.MainWindow?.DispatcherQueue;
+
+
+        _liveSession.Changed += (_, args) => RunOnUiThread(() => RefreshFromSnapshot(args.Snapshot), "live-session-changed");
+
+        _pipeline.Changed += (_, _) => RunOnUiThread(OnPipelineChanged, "pipeline-changed");
+
+        RefreshFromSnapshot(_liveSession.Current);
+
+        RefreshPreviewTargets();
+
     }
 
-    /// <summary>The logical output screen id, or <c>null</c> for the shared program preview.</summary>
-    public string? ScreenId
+    /// <summary>Selectable output screens (audience feeds + stage) the operator preview can mirror.</summary>
+    public ObservableCollection<PreviewTargetOption> PreviewTargets { get; } = [];
+
+    /// <summary>Display name of the currently mirrored screen, shown on the preview target picker.</summary>
+    public string SelectedPreviewTargetName =>
+        ResolveSelectedScreen() is { } screen ? screen.Name : "Audience";
+
+    /// <summary>Id of the currently mirrored screen, used to mark the active preview-target menu item.</summary>
+    public string? SelectedPreviewScreenId => ResolveSelectedScreen()?.Id;
+
+    /// <summary>True when more than one output screen exists, so the picker is worth showing.</summary>
+    public bool HasMultiplePreviewTargets => PreviewTargets.Count > 1;
+
+    /// <summary>Visibility of the preview-target picker (shown only when there is a choice to make).</summary>
+    public Visibility PreviewTargetPickerVisibility =>
+        HasMultiplePreviewTargets ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Re-targets the operator preview to mirror the given screen and replays its latest frame.</summary>
+    public void SelectPreviewTarget(string screenId)
     {
-        get => _screenId;
-        private set => SetProperty(ref _screenId, value);
-    }
-
-    public PresentationProject? Project
-    {
-        get => _project;
-        set => SetProperty(ref _project, value);
-    }
-
-    public PresentationSlide? CurrentSlide
-    {
-        get => _currentSlide;
-        set => SetProperty(ref _currentSlide, value);
-    }
-
-    public bool IsBlackout
-    {
-        get => _isBlackout;
-        set => SetProperty(ref _isBlackout, value);
-    }
-
-    public bool IsClear
-    {
-        get => _isClear;
-        set => SetProperty(ref _isClear, value);
-    }
-
-    public bool SuppressPresentation
-    {
-        get => _suppressPresentation;
-        set => SetProperty(ref _suppressPresentation, value);
-    }
-
-    public bool SuppressMedia
-    {
-        get => _suppressMedia;
-        set => SetProperty(ref _suppressMedia, value);
-    }
-
-    /// <summary>Whether presentation content is routed to this output surface.</summary>
-    public bool RoutesPresentation
-    {
-        get => _routesPresentation;
-        private set => SetProperty(ref _routesPresentation, value);
-    }
-
-    /// <summary>Whether media content is routed to this output surface.</summary>
-    public bool RoutesMedia
-    {
-        get => _routesMedia;
-        private set => SetProperty(ref _routesMedia, value);
-    }
-
-    /// <summary>Backend layer routing states for this output surface.</summary>
-    public IReadOnlyList<OutputLayerRouteState> LayerRoutes
-    {
-        get => _layerRoutes;
-        private set => SetProperty(ref _layerRoutes, value);
-    }
-
-    /// <summary>Current diagnostics snapshot for this output surface, when available.</summary>
-    public OutputScreenDiagnostics? ScreenDiagnostics
-    {
-        get => _screenDiagnostics;
-        private set => SetProperty(ref _screenDiagnostics, value);
-    }
-
-    /// <summary>Whether diagnostics are available for this output surface.</summary>
-    public bool HasScreenDiagnostics => ScreenDiagnostics != null;
-
-    /// <summary>Current output health state for the screen.</summary>
-    public ChurchPresenter.Backend.Output.EndpointHealth ScreenHealth =>
-        ScreenDiagnostics?.Health ?? ChurchPresenter.Backend.Output.EndpointHealth.Unknown;
-
-    /// <summary>Operator-facing output diagnostics text.</summary>
-    public string ScreenDiagnosticsMessage => ScreenDiagnostics?.Message ?? string.Empty;
-
-    /// <summary>Endpoint ids currently mapped to this screen.</summary>
-    public IReadOnlyList<string> EndpointIds => ScreenDiagnostics?.EndpointIds ?? Array.Empty<string>();
-
-    /// <summary>The fully resolved live output scene consumed by native WinUI output hosts.</summary>
-    public OutputScene Scene
-    {
-        get => _scene;
-        private set => SetProperty(ref _scene, value);
-    }
-
-    /// <summary>
-    /// Layer IDs resolved from the last program frame; null/empty means render all layers.
-    /// Always sourced from the resolved frame so it stays in sync with <see cref="CurrentSlide"/>.
-    /// </summary>
-    public IReadOnlyList<string>? VisibleLayerIds => _currentFrame.VisibleLayerIds;
-
-    /// <summary>
-    /// Media layers resolved from the last program frame.
-    /// Always sourced from the resolved frame so underlay/overlay/audio stay consistent.
-    /// </summary>
-    public MediaLayersState MediaLayers => _currentFrame.MediaLayers;
-
-    /// <summary>Presentation-wide default transition from the active bundle's arrangement settings.</summary>
-    public SlideTransition? DefaultTransition => Project?.Arrangement?.DefaultTransition;
-
-    /// <summary>
-    /// Engine-ready transition for the current program slide (includes the global Show fallback).
-    /// </summary>
-    public SlideTransition? EffectiveTransition => _currentFrame.Transition;
-
-    /// <summary>Resolved global media transition for program output (media-layer-only crossfades).</summary>
-    public SlideTransition? EffectiveMediaTransition => _currentFrame.MediaTransition;
-
-    /// <summary>Logical output width derived from the current aspect-ratio override.</summary>
-    public double FrameWidth =>
-        PresentationModelUtilities.GetBaseSlideSize(OutputAspectRatioOverride, null).Width;
-
-    /// <summary>Logical output height derived from the current aspect-ratio override.</summary>
-    public double FrameHeight =>
-        PresentationModelUtilities.GetBaseSlideSize(OutputAspectRatioOverride, null).Height;
-
-    /// <summary>True when program presentation content is currently visible on this output surface.</summary>
-    public bool HasPresentationContent =>
-        CurrentSlide != null
-        && !SuppressPresentation
-        && !IsBlackout
-        && !IsClear;
-
-    /// <summary>True when program media content is currently visible on this output surface.</summary>
-    public bool HasMediaContent =>
-        !SuppressMedia
-        && !IsBlackout
-        && !IsClear
-        && HasMediaLayers(MediaLayers);
-
-    /// <summary>Re-reads output scaling / aspect ratio from the active presentation and notifies bound output surfaces.</summary>
-    public void RefreshOutputLayoutFromPresentation()
-    {
-        ApplyFrameOutputLayout(_frames.Current.Frame);
-    }
-
-    private void ApplyFrameOutputLayout(RenderFrame frame)
-    {
-        OutputStageStretch = string.Equals(frame.OutputScaleMode, "fill", StringComparison.OrdinalIgnoreCase)
-            ? Stretch.UniformToFill
-            : Stretch.Uniform;
-        OutputAspectRatioOverride = frame.OutputAspectRatioOverride;
-        OnPropertyChanged(nameof(FrameWidth));
-        OnPropertyChanged(nameof(FrameHeight));
-    }
-
-    private void RefreshFromSnapshot(OutputFrameSnapshot snapshot)
-    {
-        var frame = snapshot.Frame;
-        ApplySnapshotMetadata(snapshot);
-        if (RenderFrameContentComparer.AreEquivalent(_currentFrame, frame))
+        if (string.IsNullOrWhiteSpace(screenId))
             return;
 
-        // Store the resolved frame first so all property getters read from the same snapshot.
-        _currentFrame = frame;
-        Scene = snapshot.Scene;
+        _selectedPreviewScreenId = screenId;
 
-        ApplyFrameOutputLayout(frame);
+        _previewSession.SetTargetScreen(screenId);
+        _previewSession.NudgeCanonicalRender(screenId);
+        if (_previewAnchor is not null)
+            _previewSession.ShowOver(_previewAnchor, FrameWidth, FrameHeight, OutputStageStretch);
 
-        // Resolve the incoming slide into the backing field WITHOUT firing PropertyChanged yet.
-        // This ensures the transition property is ready before output hosts react to the slide change.
-        _currentSlide = frame.Slide;
-        _project = frame.Project;
-
-        IsBlackout = frame.IsBlackout;
-        IsClear = frame.IsClear;
-        SuppressPresentation = frame.SuppressPresentation;
-        SuppressMedia = frame.SuppressMedia;
-
-        OnPropertyChanged(nameof(Project));
-        OnPropertyChanged(nameof(VisibleLayerIds));
-        OnPropertyChanged(nameof(MediaLayers));
-        OnPropertyChanged(nameof(DefaultTransition));
-        OnPropertyChanged(nameof(HasScreenDiagnostics));
-        OnPropertyChanged(nameof(ScreenHealth));
-        OnPropertyChanged(nameof(ScreenDiagnosticsMessage));
-        OnPropertyChanged(nameof(EndpointIds));
-
-        // Notify transitions before the current slide so bound hosts see a fully prepared scene.
-        OnPropertyChanged(nameof(EffectiveTransition));
-        OnPropertyChanged(nameof(EffectiveMediaTransition));
-        OnPropertyChanged(nameof(CurrentSlide));
-        OnPropertyChanged(nameof(HasPresentationContent));
-        OnPropertyChanged(nameof(HasMediaContent));
+        OnPropertyChanged(nameof(SelectedPreviewTargetName));
+        RefreshFrameDimensions();
+        _ = _pipeline?.InvalidateTransitionDefaultsAsync();
     }
 
-    private void ApplySnapshotMetadata(OutputFrameSnapshot snapshot)
+
+
+    [ObservableProperty]
+
+    private Stretch _outputStageStretch = Stretch.Uniform;
+
+
+
+    public string ProgramTitle
+
     {
-        ScreenId = snapshot.ScreenId;
-        ProgramTitle = snapshot.ProgramTitle;
-        RoutesPresentation = snapshot.RoutesPresentation;
-        RoutesMedia = snapshot.RoutesMedia;
-        LayerRoutes = snapshot.LayerRoutes;
-        ScreenDiagnostics = snapshot.ScreenDiagnostics;
 
-        OnPropertyChanged(nameof(HasScreenDiagnostics));
-        OnPropertyChanged(nameof(ScreenHealth));
-        OnPropertyChanged(nameof(ScreenDiagnosticsMessage));
-        OnPropertyChanged(nameof(EndpointIds));
+        get => _programTitle;
+
+        private set => SetProperty(ref _programTitle, value);
+
     }
 
-    private static bool HasMediaLayers(MediaLayersState mediaLayers) =>
-        mediaLayers.MediaUnderlay != null || mediaLayers.MediaOverlay != null || mediaLayers.Audio != null;
+
+
+    public bool IsBlackout
+
+    {
+
+        get => _isBlackout;
+
+        private set => SetProperty(ref _isBlackout, value);
+
+    }
+
+
+
+    public bool IsClear
+
+    {
+
+        get => _isClear;
+
+        private set => SetProperty(ref _isClear, value);
+
+    }
+
+
+
+    public double FrameWidth => ResolveSelectedScreen()?.RenderSize.Width ?? DefaultFrameWidth;
+
+
+
+    public double FrameHeight => ResolveSelectedScreen()?.RenderSize.Height ?? DefaultFrameHeight;
+
+
+
+    /// <summary>Positions the shell-hosted preview mirror over the Show page preview slot.</summary>
+    public void AttachPreview(FrameworkElement previewAnchor)
+    {
+        ArgumentNullException.ThrowIfNull(previewAnchor);
+
+        _previewAnchor = previewAnchor;
+        OutputScreen? selected = ResolveSelectedScreen();
+        _selectedPreviewScreenId = selected?.Id;
+        string screenId = selected?.Id ?? "audience";
+
+        _previewSession.SetTargetScreen(screenId);
+        _previewSession.NudgeCanonicalRender(screenId);
+        _previewSession.ShowOver(previewAnchor, FrameWidth, FrameHeight, OutputStageStretch);
+        Hosting.ShowNavigationDiagnostics.Log(
+            "PreviewSession.Attach",
+            $"screen={screenId} brushHash={_previewSession.Brush.GetHashCode()}");
+
+        if (_dispatcherQueue == null)
+        {
+            _ = _pipeline?.InvalidateTransitionDefaultsAsync();
+            return;
+        }
+
+        _dispatcherQueue.TryEnqueue(
+            Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+            () =>
+            {
+                _ = _pipeline?.InvalidateTransitionDefaultsAsync();
+            });
+    }
+
+    /// <summary>Hides the shell preview overlay when Show leaves the frame.</summary>
+    public void DetachPreviewPage(FrameworkElement previewAnchor)
+    {
+        ArgumentNullException.ThrowIfNull(previewAnchor);
+        if (!ReferenceEquals(_previewAnchor, previewAnchor))
+            return;
+
+        _previewAnchor = null;
+        _previewSession.HideOverlay();
+        Hosting.ShowNavigationDiagnostics.Log(
+            "PreviewSession.DetachPage",
+            $"brushHash={_previewSession.Brush.GetHashCode()}");
+    }
+
+
+
+    private void RefreshFromSnapshot(LiveSessionQuerySnapshot snapshot)
+
+    {
+
+        ProgramTitle = BuildProgramTitle(snapshot);
+
+        IsBlackout = snapshot.ActiveLayers.Any(static layer =>
+
+            layer.Kind == OutputLayerKind.Mask && layer.IsLive);
+
+        IsClear = snapshot.ActiveLayers.All(static layer => !layer.IsLive);
+
+        RefreshFrameDimensions();
+
+    }
+
+
+
+    private void RefreshFrameDimensions()
+    {
+        OnPropertyChanged(nameof(FrameWidth));
+        OnPropertyChanged(nameof(FrameHeight));
+        if (_previewAnchor is not null)
+            _previewSession.ShowOver(_previewAnchor, FrameWidth, FrameHeight, OutputStageStretch);
+    }
+
+    private void OnPipelineChanged()
+    {
+        RefreshPreviewTargets();
+        RefreshFrameDimensions();
+    }
+
+    private void RefreshPreviewTargets()
+    {
+        LiveSessionSnapshot snapshot = _pipeline?.Snapshot ?? LiveSessionSnapshot.CreateEmpty();
+        List<PreviewTargetOption> options = snapshot.SessionState.Screens.Values
+            .OrderBy(static screen => screen.Kind)
+            .ThenBy(static screen => screen.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(static screen => new PreviewTargetOption(screen.Id, screen.Name, screen.Kind))
+            .ToList();
+
+        bool changed = options.Count != PreviewTargets.Count
+            || options.Where((option, index) => !option.Equals(PreviewTargets[index])).Any();
+        if (changed)
+        {
+            PreviewTargets.Clear();
+            foreach (PreviewTargetOption option in options)
+                PreviewTargets.Add(option);
+            OnPropertyChanged(nameof(HasMultiplePreviewTargets));
+            OnPropertyChanged(nameof(PreviewTargetPickerVisibility));
+        }
+
+        // Fall back to a valid target if the selected screen disappeared from the topology.
+        string? previousScreenId = _selectedPreviewScreenId;
+        if (_selectedPreviewScreenId == null
+            || !options.Any(option => string.Equals(option.ScreenId, _selectedPreviewScreenId, StringComparison.OrdinalIgnoreCase)))
+        {
+            _selectedPreviewScreenId = ResolveMainScreen()?.Id;
+            OnPropertyChanged(nameof(SelectedPreviewTargetName));
+        }
+
+        if (!string.Equals(previousScreenId, _selectedPreviewScreenId, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(_selectedPreviewScreenId))
+        {
+            _previewSession.SetTargetScreen(_selectedPreviewScreenId);
+            _previewSession.NudgeCanonicalRender(_selectedPreviewScreenId);
+            if (_previewAnchor is not null)
+                _previewSession.ShowOver(_previewAnchor, FrameWidth, FrameHeight, OutputStageStretch);
+        }
+    }
+
+    private void RunOnUiThread(Action action, string reason)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        if (_dispatcherQueue == null || _dispatcherQueue.HasThreadAccess)
+        {
+            action();
+            return;
+        }
+
+        _ = reason;
+        _ = _dispatcherQueue.TryEnqueue(() => action());
+    }
+
+
+
+    private OutputScreen? ResolveMainScreen()
+
+    {
+
+        LiveSessionSnapshot pipelineSnapshot = _pipeline?.Snapshot ?? LiveSessionSnapshot.CreateEmpty();
+
+        return pipelineSnapshot.SessionState.Screens.Values
+
+            .FirstOrDefault(static screen => screen.Kind == OutputScreenKind.Audience)
+
+            ?? pipelineSnapshot.SessionState.Screens.Values.FirstOrDefault();
+
+    }
+
+    private OutputScreen? ResolveSelectedScreen()
+    {
+        LiveSessionSnapshot pipelineSnapshot = _pipeline?.Snapshot ?? LiveSessionSnapshot.CreateEmpty();
+        if (_selectedPreviewScreenId != null
+            && pipelineSnapshot.SessionState.Screens.TryGetValue(_selectedPreviewScreenId, out OutputScreen? selected))
+        {
+            return selected;
+        }
+
+        return ResolveMainScreen();
+    }
+
+
+
+    private static string BuildProgramTitle(LiveSessionQuerySnapshot snapshot)
+
+    {
+
+        LiveLayerStateQuery? slideLayer = snapshot.ActiveLayers.FirstOrDefault(static layer =>
+
+            layer.Kind == OutputLayerKind.Slide && layer.IsLive);
+
+        if (slideLayer == null)
+
+            return string.Empty;
+
+
+
+        return FirstNonEmpty(slideLayer.PayloadName, slideLayer.PayloadPresentationPath, slideLayer.PayloadSlideId);
+
+    }
+
+
+
+    private static string FirstNonEmpty(params string?[] values) =>
+
+        values.FirstOrDefault(static value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+
 }
+
+
+
+/// <summary>A selectable output screen the operator preview can mirror.</summary>
+public sealed record PreviewTargetOption(string ScreenId, string Name, OutputScreenKind Kind)
+{
+    /// <summary>True when this option mirrors a stage screen.</summary>
+    public bool IsStage => Kind == OutputScreenKind.Stage;
+}
+
+

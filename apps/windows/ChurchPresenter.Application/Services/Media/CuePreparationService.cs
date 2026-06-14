@@ -90,6 +90,55 @@ public sealed class CuePreparationService(
     }
 
     /// <inheritdoc />
+    public Task<PreparedSlideCue?> PreparePreviewSlideCueAsync(
+        PresentationDocument document,
+        PresentationSlide slide,
+        string? instanceKey = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(slide);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        string resolvedPath = string.IsNullOrWhiteSpace(document.SourcePath)
+            ? string.Empty
+            : document.SourcePath;
+        List<SlideDto> slides = document.Slides.ToList();
+        int slideIndex = slides.FindIndex(candidate =>
+            string.Equals(candidate.Id, slide.Id, StringComparison.OrdinalIgnoreCase));
+        SlideDto? slideDto = slideIndex >= 0 ? slides[slideIndex] : null;
+
+        ThemeResolutionResult theme = _themeResolution.ResolveThemeSlide(document.Project, slide);
+        SceneCompileResult? scene = _slideSceneCompiler.Compile(new SceneCompileRequest
+        {
+            Project = document.Project,
+            Slide = slide,
+            ThemeSlide = theme.ThemeSlide,
+            ArrangementInstanceKey = NormalizeInstanceKey(slide.Id, instanceKey),
+            Intent = RenderIntent.AudienceOutput,
+            DependencyStamps = BuildDependencyStamps(document),
+        });
+
+        PreparedSlideCue cue = new()
+        {
+            Presentation = document,
+            PresentationPath = resolvedPath,
+            SlideId = slide.Id,
+            InstanceKey = NormalizeInstanceKey(slide.Id, instanceKey),
+            SlideIndex = slideIndex,
+            SlideDocument = slideDto,
+            Slide = slide,
+            Scene = scene?.Scene,
+            DependencyDiagnostics = scene?.Scene.Dependencies
+                .Where(static dependency => !dependency.IsResolved || dependency.FailureKind != null || !string.IsNullOrWhiteSpace(dependency.Message))
+                .ToArray() ?? Array.Empty<SceneDependency>(),
+            MediaLayers = SlideMediaLayerBuilder.Build(slide),
+        };
+
+        return Task.FromResult<PreparedSlideCue?>(cue);
+    }
+
+    /// <inheritdoc />
     public PreparedSlideCue? GetPreparedSlideCue(string? presentationPath, string slideId, string? instanceKey = null)
     {
         if (string.IsNullOrWhiteSpace(slideId))

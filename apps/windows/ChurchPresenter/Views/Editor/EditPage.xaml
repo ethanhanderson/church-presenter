@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:ChurchPresenter.Controls"
+    xmlns:engine="using:ChurchPresenter.Controls.Rendering.Engine"
     xmlns:converters="using:ChurchPresenter.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:models="using:ChurchPresenter.Models.Documents"
@@ -13,6 +14,30 @@
     Background="Transparent">
     <Page.Resources>
         <converters:BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+
+        <Style x:Key="EditPanelSelectorBarHostStyle" TargetType="Border">
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="MinHeight" Value="48" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="CornerRadius" Value="8,8,0,0" />
+        </Style>
+
+        <Style x:Key="EditLayerAddButtonStyle" TargetType="Button" BasedOn="{StaticResource SubtleButtonStyle}">
+            <Setter Property="MinWidth" Value="72" />
+            <Setter Property="Height" Value="56" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="EditInspectorSectionTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
     </Page.Resources>
     <Page.KeyboardAccelerators>
         <KeyboardAccelerator Invoked="SaveKeyboardAccelerator_Invoked" Key="S" Modifiers="Control" />
@@ -21,300 +46,451 @@
         <KeyboardAccelerator Invoked="DeleteKeyboardAccelerator_Invoked" Key="Delete" />
     </Page.KeyboardAccelerators>
 
-    <Grid ColumnDefinitions="300,*,340" Background="Transparent">
-        <Grid
+    <Grid Background="Transparent">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MinWidth="320" />
+            <ColumnDefinition Width="460" MinWidth="360" MaxWidth="560" />
+        </Grid.ColumnDefinitions>
+
+        <NavigationView
+            x:Name="EditNavigationView"
             Grid.Column="0"
-            Background="{ThemeResource LayerFillColorDefaultBrush}"
-            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-            BorderThickness="0,0,1,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+            Padding="0"
+            Background="Transparent"
+            CompactPaneLength="280"
+            IsBackButtonVisible="Collapsed"
+            IsPaneOpen="True"
+            IsPaneToggleButtonVisible="False"
+            IsSettingsVisible="False"
+            IsTitleBarAutoPaddingEnabled="False"
+            OpenPaneLength="280"
+            PaneDisplayMode="Left">
 
-            <StackPanel Grid.Row="0" Padding="16" Spacing="12">
-                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Edit" />
-                <TextBox Header="Presentation Title" Text="{Binding PresentationTitle, Mode=TwoWay}" />
-                <ComboBox
-                    Header="Aspect Ratio"
-                    ItemsSource="{Binding AspectRatioChoices}"
-                    SelectedItem="{Binding PresentationAspectRatio, Mode=TwoWay}" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Command="{Binding AddSlideCommand}" Content="Add Slide" />
-                    <Button Command="{Binding DuplicateSlideCommand}" Content="Duplicate" />
-                    <Button Command="{Binding DeleteSlideCommand}" Content="Delete" />
-                </StackPanel>
-                <TextBlock
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="{Binding CurrentPath}"
-                    TextTrimming="CharacterEllipsis" />
-            </StackPanel>
-
-            <ListView
-                x:Name="SlidesList"
-                Grid.Row="1"
-                Margin="12,0"
-                IsItemClickEnabled="True"
-                ItemClick="SlidesList_ItemClick"
-                ItemsSource="{Binding Slides}"
-                SelectionMode="Single">
-                <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="models:PresentationSlide">
-                        <StackPanel Margin="0,0,0,12" Spacing="6">
-                            <StackPanel.ContextFlyout>
-                                <MenuFlyout>
-                                    <MenuFlyoutItem Click="DuplicateSlideMenuItem_Click" Text="Duplicate Slide" />
-                                    <MenuFlyoutItem Click="DeleteSlideMenuItem_Click" Text="Delete Slide" />
-                                    <MenuFlyoutItem Click="MoveSlideUpMenuItem_Click" Text="Move Slide Up" />
-                                    <MenuFlyoutItem Click="MoveSlideDownMenuItem_Click" Text="Move Slide Down" />
-                                    <MenuFlyoutItem Click="EditSlideTransitionMenuItem_Click" Text="Transitions..." />
-                                </MenuFlyout>
-                            </StackPanel.ContextFlyout>
-                            <Border
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
-                                <controls:SlideStageView
-                                    Height="112"
-                                    Margin="8"
-                                    Project="{Binding ViewModel.ProjectPreview, ElementName=RootPage}"
-                                    RenderMode="Thumbnail"
-                                    Slide="{Binding}" />
-                            </Border>
-                            <TextBlock
-                                FontSize="12"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="{Binding SectionLabel}"
-                                TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-
-            <StackPanel Grid.Row="2" Padding="16" Spacing="8">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Command="{Binding SaveCommand}" Content="Save Presentation" />
-                    <Button Command="{Binding SaveAsCommand}" Content="Save As" />
-                </StackPanel>
-                <TextBlock
-                    FontSize="12"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="{Binding StatusMessage}"
-                    TextWrapping="WrapWholeWords" />
-            </StackPanel>
-        </Grid>
-
-        <Grid
-            Grid.Column="1"
-            Padding="16"
-            Background="{ThemeResource LayerFillColorDefaultBrush}">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-
-            <StackPanel Grid.Row="0" Spacing="4">
-                <TextBlock FontSize="22" FontWeight="SemiBold" Text="{Binding SelectedSlideTitle}" />
-                <TextBlock
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="{Binding PresentationAspectRatio}" />
-            </StackPanel>
-
-            <Border
-                Grid.Row="1"
-                Margin="0,16,0,16"
-                Background="Black"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="8">
-                <controls:SlideStageView
-                    MediaLayers="{Binding SelectedSlideMediaLayers}"
-                    Margin="12"
-                    Project="{Binding ProjectPreview}"
-                    RenderMode="Editor"
-                    ShowSafeArea="True"
-                    Slide="{Binding SelectedSlidePreview}" />
-            </Border>
-
-            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
-                <Button Command="{Binding MoveSlideUpCommand}" Content="Move Up" />
-                <Button Command="{Binding MoveSlideDownCommand}" Content="Move Down" />
-                <Button Command="{Binding AddTextLayerCommand}" Content="Add Text" />
-                <Button Command="{Binding AddShapeLayerCommand}" Content="Add Shape" />
-                <Button Command="{Binding DeleteLayerCommand}" Content="Delete Layer" />
-            </StackPanel>
-        </Grid>
-
-        <ScrollViewer
-            Grid.Column="2"
-            Background="{ThemeResource LayerFillColorDefaultBrush}">
-            <StackPanel Padding="16" Spacing="12">
-                <TextBlock FontSize="22" FontWeight="SemiBold" Text="Inspector" />
-
-                <TextBox Header="Section Label" Text="{Binding SelectedSlideSectionLabel, Mode=TwoWay}" />
-                <ComboBox
-                    Header="Section"
-                    ItemsSource="{Binding SectionOptions}"
-                    SelectedItem="{Binding SelectedSlideSection, Mode=TwoWay}" />
-                <TextBox
-                    Header="Notes"
-                    AcceptsReturn="True"
-                    MinHeight="96"
-                    Text="{Binding SelectedSlideNotes, Mode=TwoWay}"
-                    TextWrapping="Wrap" />
-
-                <Border
-                    Padding="12"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
-                    <StackPanel Spacing="10">
-                        <TextBlock FontWeight="SemiBold" Text="Theme" />
-                        <ComboBox
-                            x:Name="ThemePicker"
-                            Header="Theme"
-                            DisplayMemberPath="Name"
-                            ItemsSource="{Binding AvailableThemes}"
-                            SelectedItem="{Binding SelectedThemeForSlide, Mode=OneWay}"
-                            SelectionChanged="ThemePicker_SelectionChanged" />
-                        <ComboBox
-                            x:Name="ThemeSlidePicker"
-                            Header="Slide style"
-                            DisplayMemberPath="Name"
-                            ItemsSource="{Binding AvailableThemeSlides}"
-                            SelectedItem="{Binding SelectedThemeSlideForSlide, Mode=OneWay}"
-                            SelectionChanged="ThemeSlidePicker_SelectionChanged" />
-                        <ToggleSwitch Header="Updates with theme" IsOn="{Binding SelectedSlideUpdatesWithTheme, Mode=TwoWay}" />
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button
-                                Command="{Binding DetachSelectedSlideThemeCommand}"
-                                Content="Customize this slide"
-                                IsEnabled="{Binding HasSelectedSlide}" />
-                            <Button
-                                Content="Update from library"
-                                IsEnabled="{Binding HasThemeUpdate}" />
-                        </StackPanel>
-                        <TextBlock
-                            FontSize="12"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Text="{Binding ThemeUpdateMessage}"
-                            TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-
-                <TextBlock FontWeight="SemiBold" Text="Transition" />
-                <TextBlock
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="{Binding SelectedSlideTransitionLabel}"
-                    TextWrapping="WrapWholeWords" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button
-                        Click="EditSelectedSlideTransitionButton_Click"
-                        Content="Edit Transition"
-                        IsEnabled="{Binding HasSelectedSlide}" />
-                    <Button
-                        Click="ClearSelectedSlideTransitionButton_Click"
-                        Content="Clear Override"
-                        IsEnabled="{Binding HasSelectedSlideTransition}" />
-                </StackPanel>
-
-                <TextBlock FontWeight="SemiBold" Text="Layers" />
+            <NavigationView.PaneCustomContent>
                 <ListView
-                    x:Name="LayersList"
-                    Height="180"
+                    x:Name="SlidesList"
+                    Padding="8,12,8,12"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
                     IsItemClickEnabled="True"
-                    ItemClick="LayersList_ItemClick"
-                    ItemsSource="{Binding Layers}"
+                    ItemClick="SlidesList_ItemClick"
+                    ItemsSource="{Binding Slides}"
                     SelectionMode="Single">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Padding" Value="0,0,0,8" />
+                        </Style>
+                    </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Margin="0,0,0,8">
+                        <DataTemplate x:DataType="models:PresentationSlide">
+                            <StackPanel Spacing="6">
                                 <StackPanel.ContextFlyout>
                                     <MenuFlyout>
-                                        <MenuFlyoutItem Click="DeleteLayerMenuItem_Click" Text="Delete Layer" />
+                                        <MenuFlyoutItem Click="DuplicateSlideMenuItem_Click" Text="Duplicate Slide" />
+                                        <MenuFlyoutItem Click="DeleteSlideMenuItem_Click" Text="Delete Slide" />
+                                        <MenuFlyoutItem Click="MoveSlideUpMenuItem_Click" Text="Move Slide Up" />
+                                        <MenuFlyoutItem Click="MoveSlideDownMenuItem_Click" Text="Move Slide Down" />
+                                        <MenuFlyoutItem Click="EditSlideTransitionMenuItem_Click" Text="Transitions..." />
                                     </MenuFlyout>
                                 </StackPanel.ContextFlyout>
-                                <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                                <Border
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                                    <engine:SceneCanvasView
+                                        Height="112"
+                                        Margin="8"
+                                        Intent="Thumbnail"
+                                        Project="{Binding ViewModel.ProjectPreview, ElementName=RootPage}"
+                                        Slide="{Binding}" />
+                                </Border>
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{Binding SectionLabel}"
+                                    TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
+            </NavigationView.PaneCustomContent>
 
-                <TextBox
-                    Header="Layer Name"
-                    Text="{Binding SelectedLayerName, Mode=TwoWay}"
-                    Visibility="{Binding HasSelectedLayer, Converter={StaticResource BoolToVisibilityConverter}}" />
+            <Grid RowDefinitions="*,Auto" Background="Transparent">
+                <Border
+                    Grid.Row="0"
+                    Margin="16,16,16,0"
+                    Background="Black"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                    <engine:SceneCanvasView
+                        Margin="12"
+                        Intent="Editor"
+                        Project="{Binding ProjectPreview}"
+                        ShowSafeArea="True"
+                        Slide="{Binding SelectedSlidePreview}" />
+                </Border>
 
-                <Grid
-                    ColumnDefinitions="*,*"
-                    ColumnSpacing="8"
-                    Visibility="{Binding HasSelectedLayer, Converter={StaticResource BoolToVisibilityConverter}}">
-                    <NumberBox Header="X" Value="{Binding SelectedLayerX, Mode=TwoWay}" />
-                    <NumberBox Grid.Column="1" Header="Y" Value="{Binding SelectedLayerY, Mode=TwoWay}" />
+                <Border
+                    Grid.Row="1"
+                    Margin="16,12,16,16"
+                    Padding="12,8"
+                    HorizontalAlignment="Stretch"
+                    Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                    <StackPanel
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <Button
+                            AutomationProperties.Name="Add text layer"
+                            Command="{Binding AddTextLayerCommand}"
+                            Style="{StaticResource EditLayerAddButtonStyle}"
+                            ToolTipService.ToolTip="Add text">
+                            <StackPanel Spacing="4" HorizontalAlignment="Center">
+                                <FontIcon
+                                    HorizontalAlignment="Center"
+                                    FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                    FontSize="16"
+                                    Glyph="&#xE8D2;" />
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="11"
+                                    Text="Text" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            AutomationProperties.Name="Add shape layer"
+                            Command="{Binding AddShapeLayerCommand}"
+                            Style="{StaticResource EditLayerAddButtonStyle}"
+                            ToolTipService.ToolTip="Add shape">
+                            <StackPanel Spacing="4" HorizontalAlignment="Center">
+                                <FontIcon
+                                    HorizontalAlignment="Center"
+                                    FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                    FontSize="16"
+                                    Glyph="&#xE7C9;" />
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="11"
+                                    Text="Shape" />
+                            </StackPanel>
+                        </Button>
+                        <Border
+                            Width="1"
+                            Height="36"
+                            Margin="4,0"
+                            VerticalAlignment="Center"
+                            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                        <Button
+                            AutomationProperties.Name="Delete selected layer"
+                            Command="{Binding DeleteLayerCommand}"
+                            IsEnabled="{Binding HasSelectedLayer}"
+                            Style="{StaticResource EditLayerAddButtonStyle}"
+                            ToolTipService.ToolTip="Delete layer">
+                            <StackPanel Spacing="4" HorizontalAlignment="Center">
+                                <FontIcon
+                                    HorizontalAlignment="Center"
+                                    FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                    FontSize="16"
+                                    Glyph="&#xE74D;" />
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="11"
+                                    Text="Delete" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </NavigationView>
+
+        <Border
+            x:Name="InspectorPanelChromeBorder"
+            Grid.Column="1"
+            MinHeight="0"
+            VerticalAlignment="Stretch"
+            Background="{ThemeResource LayerFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1,1,0,0"
+            Padding="16,14,20,16">
+            <Border
+                MinHeight="0"
+                VerticalAlignment="Stretch"
+                Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+                <Grid MinHeight="0" RowDefinitions="Auto,*">
+                    <Border Grid.Row="0" Style="{StaticResource EditPanelSelectorBarHostStyle}">
+                        <Grid VerticalAlignment="Stretch">
+                            <SelectorBar
+                                x:Name="InspectorSelectorBar"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                AutomationProperties.AutomationId="EditInspectorSelectorBar"
+                                SelectionChanged="InspectorSelectorBar_SelectionChanged">
+                                <SelectorBarItem
+                                    x:Name="PresentationInspectorItem"
+                                    AutomationProperties.Name="Presentation"
+                                    IsSelected="True"
+                                    Tag="presentation"
+                                    ToolTipService.ToolTip="Presentation">
+                                    <SelectorBarItem.Icon>
+                                        <FontIcon Glyph="&#xE8F1;" />
+                                    </SelectorBarItem.Icon>
+                                </SelectorBarItem>
+                                <SelectorBarItem
+                                    x:Name="LayersInspectorItem"
+                                    AutomationProperties.Name="Layers"
+                                    Tag="layers"
+                                    ToolTipService.ToolTip="Layers">
+                                    <SelectorBarItem.Icon>
+                                        <FontIcon Glyph="&#xE8A5;" />
+                                    </SelectorBarItem.Icon>
+                                </SelectorBarItem>
+                                <SelectorBarItem
+                                    x:Name="PropertiesInspectorItem"
+                                    AutomationProperties.Name="Properties"
+                                    Tag="properties"
+                                    ToolTipService.ToolTip="Properties">
+                                    <SelectorBarItem.Icon>
+                                        <FontIcon Glyph="&#xE90F;" />
+                                    </SelectorBarItem.Icon>
+                                </SelectorBarItem>
+                            </SelectorBar>
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer
+                        Grid.Row="1"
+                        MinHeight="0"
+                        Margin="12"
+                        HorizontalScrollBarVisibility="Disabled"
+                        VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="12">
+                            <StackPanel
+                                x:Name="PresentationInspectorPanel"
+                                Spacing="12"
+                                Visibility="Visible">
+                                <TextBox Header="Presentation Title" Text="{Binding PresentationTitle, Mode=TwoWay}" />
+                                <ComboBox
+                                    Header="Aspect Ratio"
+                                    ItemsSource="{Binding AspectRatioChoices}"
+                                    SelectedItem="{Binding PresentationAspectRatio, Mode=TwoWay}" />
+                                <TextBlock
+                                    Style="{StaticResource EditInspectorSectionTitleStyle}"
+                                    Text="Slides" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Command="{Binding AddSlideCommand}" Content="Add" />
+                                    <Button Command="{Binding DuplicateSlideCommand}" Content="Duplicate" />
+                                    <Button Command="{Binding DeleteSlideCommand}" Content="Delete" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Command="{Binding MoveSlideUpCommand}" Content="Move Up" />
+                                    <Button Command="{Binding MoveSlideDownCommand}" Content="Move Down" />
+                                </StackPanel>
+                                <TextBlock
+                                    Style="{StaticResource EditInspectorSectionTitleStyle}"
+                                    Text="Selected slide" />
+                                <TextBox Header="Section Label" Text="{Binding SelectedSlideSectionLabel, Mode=TwoWay}" />
+                                <ComboBox
+                                    Header="Section"
+                                    ItemsSource="{Binding SectionOptions}"
+                                    SelectedItem="{Binding SelectedSlideSection, Mode=TwoWay}" />
+                                <TextBox
+                                    Header="Notes"
+                                    AcceptsReturn="True"
+                                    MinHeight="72"
+                                    Text="{Binding SelectedSlideNotes, Mode=TwoWay}"
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Style="{StaticResource EditInspectorSectionTitleStyle}"
+                                    Text="Theme" />
+                                <ComboBox
+                                    x:Name="ThemePicker"
+                                    Header="Theme"
+                                    DisplayMemberPath="Name"
+                                    ItemsSource="{Binding AvailableThemes}"
+                                    SelectedItem="{Binding SelectedThemeForSlide, Mode=OneWay}"
+                                    SelectionChanged="ThemePicker_SelectionChanged" />
+                                <ComboBox
+                                    x:Name="ThemeSlidePicker"
+                                    Header="Slide style"
+                                    DisplayMemberPath="Name"
+                                    ItemsSource="{Binding AvailableThemeSlides}"
+                                    SelectedItem="{Binding SelectedThemeSlideForSlide, Mode=OneWay}"
+                                    SelectionChanged="ThemeSlidePicker_SelectionChanged" />
+                                <ToggleSwitch Header="Updates with theme" IsOn="{Binding SelectedSlideUpdatesWithTheme, Mode=TwoWay}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button
+                                        Command="{Binding DetachSelectedSlideThemeCommand}"
+                                        Content="Customize this slide"
+                                        IsEnabled="{Binding HasSelectedSlide}" />
+                                    <Button
+                                        Content="Update from library"
+                                        IsEnabled="{Binding HasThemeUpdate}" />
+                                </StackPanel>
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{Binding ThemeUpdateMessage}"
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Style="{StaticResource EditInspectorSectionTitleStyle}"
+                                    Text="Transition" />
+                                <TextBlock
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{Binding SelectedSlideTransitionLabel}"
+                                    TextWrapping="WrapWholeWords" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button
+                                        Click="EditSelectedSlideTransitionButton_Click"
+                                        Content="Edit"
+                                        IsEnabled="{Binding HasSelectedSlide}" />
+                                    <Button
+                                        Click="ClearSelectedSlideTransitionButton_Click"
+                                        Content="Clear"
+                                        IsEnabled="{Binding HasSelectedSlideTransition}" />
+                                </StackPanel>
+                                <TextBlock
+                                    Style="{StaticResource EditInspectorSectionTitleStyle}"
+                                    Text="File" />
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{Binding CurrentPath}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="WrapWholeWords" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Command="{Binding SaveCommand}" Content="Save" />
+                                    <Button Command="{Binding SaveAsCommand}" Content="Save As" />
+                                </StackPanel>
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{Binding StatusMessage}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+
+                            <StackPanel
+                                x:Name="LayersInspectorPanel"
+                                Spacing="12"
+                                Visibility="Collapsed">
+                                <TextBlock
+                                    Style="{StaticResource EditInspectorSectionTitleStyle}"
+                                    Text="Object list" />
+                                <ListView
+                                    x:Name="LayersList"
+                                    MinHeight="200"
+                                    IsItemClickEnabled="True"
+                                    ItemClick="LayersList_ItemClick"
+                                    ItemsSource="{Binding Layers}"
+                                    SelectionMode="Single">
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            <Setter Property="Padding" Value="0,0,0,4" />
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                                <Grid.ContextFlyout>
+                                                    <MenuFlyout>
+                                                        <MenuFlyoutItem Click="DeleteLayerMenuItem_Click" Text="Delete Layer" />
+                                                    </MenuFlyout>
+                                                </Grid.ContextFlyout>
+                                                <FontIcon
+                                                    Grid.Column="0"
+                                                    VerticalAlignment="Center"
+                                                    FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                    FontSize="14"
+                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                    Glyph="&#xE8A5;" />
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    VerticalAlignment="Center"
+                                                    FontWeight="SemiBold"
+                                                    Text="{Binding Name}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                                <Button
+                                    Command="{Binding DeleteLayerCommand}"
+                                    Content="Delete selected layer"
+                                    HorizontalAlignment="Left"
+                                    IsEnabled="{Binding HasSelectedLayer}" />
+                            </StackPanel>
+
+                            <StackPanel
+                                x:Name="PropertiesInspectorPanel"
+                                Spacing="12"
+                                Visibility="Collapsed">
+                                <TextBlock
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="Select a layer to edit its properties."
+                                    Visibility="{Binding HasSelectedLayer, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert}" />
+                                <StackPanel
+                                    Spacing="12"
+                                    Visibility="{Binding HasSelectedLayer, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <TextBox Header="Layer Name" Text="{Binding SelectedLayerName, Mode=TwoWay}" />
+                                    <TextBlock Style="{StaticResource EditInspectorSectionTitleStyle}" Text="Transform" />
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                        <NumberBox Header="X" Value="{Binding SelectedLayerX, Mode=TwoWay}" />
+                                        <NumberBox Grid.Column="1" Header="Y" Value="{Binding SelectedLayerY, Mode=TwoWay}" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                        <NumberBox Header="Width" Value="{Binding SelectedLayerWidth, Mode=TwoWay}" />
+                                        <NumberBox Grid.Column="1" Header="Height" Value="{Binding SelectedLayerHeight, Mode=TwoWay}" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                        <NumberBox Header="Rotation" Value="{Binding SelectedLayerRotation, Mode=TwoWay}" />
+                                        <NumberBox
+                                            Grid.Column="1"
+                                            Header="Opacity"
+                                            Maximum="1"
+                                            Minimum="0"
+                                            SmallChange="0.05"
+                                            Value="{Binding SelectedLayerOpacity, Mode=TwoWay}" />
+                                    </Grid>
+                                    <StackPanel
+                                        Spacing="12"
+                                        Visibility="{Binding HasSelectedTextLayer, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <TextBlock Style="{StaticResource EditInspectorSectionTitleStyle}" Text="Text" />
+                                        <TextBox
+                                            Header="Content"
+                                            AcceptsReturn="True"
+                                            MinHeight="96"
+                                            Text="{Binding SelectedTextContent, Mode=TwoWay}"
+                                            TextWrapping="Wrap" />
+                                        <TextBox Header="Font Family" Text="{Binding SelectedTextFontFamily, Mode=TwoWay}" />
+                                        <NumberBox Header="Font Size" Value="{Binding SelectedTextFontSize, Mode=TwoWay}" />
+                                        <TextBox Header="Text Color" Text="{Binding SelectedTextColor, Mode=TwoWay}" />
+                                    </StackPanel>
+                                    <StackPanel
+                                        Spacing="12"
+                                        Visibility="{Binding HasSelectedShapeLayer, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <TextBlock Style="{StaticResource EditInspectorSectionTitleStyle}" Text="Shape" />
+                                        <ComboBox
+                                            Header="Shape Type"
+                                            ItemsSource="{Binding ShapeTypeOptions}"
+                                            SelectedItem="{Binding SelectedShapeType, Mode=TwoWay}" />
+                                        <TextBox Header="Fill Color" Text="{Binding SelectedShapeFillColor, Mode=TwoWay}" />
+                                        <TextBox Header="Stroke Color" Text="{Binding SelectedShapeStrokeColor, Mode=TwoWay}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
-
-                <Grid
-                    ColumnDefinitions="*,*"
-                    ColumnSpacing="8"
-                    Visibility="{Binding HasSelectedLayer, Converter={StaticResource BoolToVisibilityConverter}}">
-                    <NumberBox Header="Width" Value="{Binding SelectedLayerWidth, Mode=TwoWay}" />
-                    <NumberBox Grid.Column="1" Header="Height" Value="{Binding SelectedLayerHeight, Mode=TwoWay}" />
-                </Grid>
-
-                <Grid
-                    ColumnDefinitions="*,*"
-                    ColumnSpacing="8"
-                    Visibility="{Binding HasSelectedLayer, Converter={StaticResource BoolToVisibilityConverter}}">
-                    <NumberBox Header="Rotation" Value="{Binding SelectedLayerRotation, Mode=TwoWay}" />
-                    <NumberBox Grid.Column="1" Header="Opacity" Minimum="0" Maximum="1" SmallChange="0.05" Value="{Binding SelectedLayerOpacity, Mode=TwoWay}" />
-                </Grid>
-
-                <TextBlock
-                    FontWeight="SemiBold"
-                    Text="Text Layer"
-                    Visibility="{Binding HasSelectedTextLayer, Converter={StaticResource BoolToVisibilityConverter}}" />
-                <TextBox
-                    Header="Content"
-                    AcceptsReturn="True"
-                    MinHeight="96"
-                    Text="{Binding SelectedTextContent, Mode=TwoWay}"
-                    TextWrapping="Wrap"
-                    Visibility="{Binding HasSelectedTextLayer, Converter={StaticResource BoolToVisibilityConverter}}" />
-                <TextBox
-                    Header="Font Family"
-                    Text="{Binding SelectedTextFontFamily, Mode=TwoWay}"
-                    Visibility="{Binding HasSelectedTextLayer, Converter={StaticResource BoolToVisibilityConverter}}" />
-                <NumberBox
-                    Header="Font Size"
-                    Value="{Binding SelectedTextFontSize, Mode=TwoWay}"
-                    Visibility="{Binding HasSelectedTextLayer, Converter={StaticResource BoolToVisibilityConverter}}" />
-                <TextBox
-                    Header="Text Color"
-                    Text="{Binding SelectedTextColor, Mode=TwoWay}"
-                    Visibility="{Binding HasSelectedTextLayer, Converter={StaticResource BoolToVisibilityConverter}}" />
-
-                <TextBlock
-                    FontWeight="SemiBold"
-                    Text="Shape Layer"
-                    Visibility="{Binding HasSelectedShapeLayer, Converter={StaticResource BoolToVisibilityConverter}}" />
-                <ComboBox
-                    Header="Shape Type"
-                    ItemsSource="{Binding ShapeTypeOptions}"
-                    SelectedItem="{Binding SelectedShapeType, Mode=TwoWay}"
-                    Visibility="{Binding HasSelectedShapeLayer, Converter={StaticResource BoolToVisibilityConverter}}" />
-                <TextBox
-                    Header="Fill Color"
-                    Text="{Binding SelectedShapeFillColor, Mode=TwoWay}"
-                    Visibility="{Binding HasSelectedShapeLayer, Converter={StaticResource BoolToVisibilityConverter}}" />
-                <TextBox
-                    Header="Stroke Color"
-                    Text="{Binding SelectedShapeStrokeColor, Mode=TwoWay}"
-                    Visibility="{Binding HasSelectedShapeLayer, Converter={StaticResource BoolToVisibilityConverter}}" />
-            </StackPanel>
-        </ScrollViewer>
+            </Border>
+        </Border>
     </Grid>
 </Page>

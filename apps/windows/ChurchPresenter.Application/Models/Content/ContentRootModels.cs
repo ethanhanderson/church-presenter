@@ -62,6 +62,12 @@ public sealed class DomainIndexEntry
 
     [JsonPropertyName("updatedAt")]
     public string? UpdatedAt { get; set; }
+
+    /// <summary>
+    /// Sanitized folder name under the domain root (e.g. <c>Libraries/Seasonal</c>). When omitted, legacy id-based folders are used.
+    /// </summary>
+    [JsonPropertyName("folderName")]
+    public string? FolderName { get; set; }
 }
 
 /// <summary>
@@ -77,7 +83,7 @@ public sealed class DomainIndex
 }
 
 /// <summary>
-/// Per-library manifest stored as <c>Libraries/&lt;LibraryId&gt;/Library.json</c>.
+/// Per-library manifest stored as <c>Libraries/&lt;folderName&gt;/Library.json</c>.
 /// </summary>
 public sealed class LibraryManifest
 {
@@ -107,7 +113,7 @@ public sealed class LibraryManifest
 }
 
 /// <summary>
-/// Per-playlist manifest stored as <c>Playlists/&lt;PlaylistId&gt;/Playlist.json</c>.
+/// Per-playlist manifest stored as <c>Playlists/&lt;folderName&gt;/Playlist.json</c>.
 /// </summary>
 public sealed class PlaylistManifest
 {

@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:ChurchPresenter.Controls"
+    xmlns:engine="using:ChurchPresenter.Controls.Rendering.Engine"
     xmlns:converters="using:ChurchPresenter.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:ChurchPresenter.Views"
@@ -122,10 +123,10 @@
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="1"
                 CornerRadius="8">
-                <controls:SlideStageView
+                <engine:SceneCanvasView
                     Margin="12"
+                    Intent="Editor"
                     Project="{x:Bind ViewModel.ThemePreviewProject, Mode=OneWay}"
-                    RenderMode="Editor"
                     ShowSafeArea="True"
                     Slide="{x:Bind ViewModel.ThemePreviewSlide, Mode=OneWay}" />
             </Border>

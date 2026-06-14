@@ -6,11 +6,18 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using ChurchPresenter.Backend.Pipeline.Commands;
+using ChurchPresenter.Hosting;
 using ChurchPresenter.Backend.Rendering;
+using ChurchPresenter.Models.Media;
+using ChurchPresenter.Models.Show;
+
+using ChurchPresenter.Services.Pipeline;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml.Media;
 
@@ -25,15 +32,21 @@ namespace ChurchPresenter.ViewModels;
 /// </summary>
 public partial class ShowViewModel : ObservableObject
 {
+    private const int MaxVisibleDeckCueWarmups = 8;
+
     private readonly IContentDirectoryService _content;
     private readonly ISettingsService _settings;
     private readonly ICatalogService _catalog;
     private readonly IPresentationDocumentService _presentationDocs;
     private readonly IPresentationProjectService _projects;
     private readonly IWorkspaceService _workspace;
-    private readonly IPlaybackEngine _engine;
-    private readonly ILiveProductionFacade _liveProduction;
-    private readonly ILiveProductionQueryService _liveProductionQuery;
+    private readonly ICueDispatcher _cueDispatcher;
+    private readonly ILiveSessionQueryService _liveSessionQuery;
+    private readonly IOperatorSelectionService _operatorSelection;
+    private readonly IOutputTargetService _outputTargets;
+    private readonly IRapidSeekCoordinator _rapidSeek;
+    private readonly CuePipelineRuntime _pipeline;
+    private readonly IMediaTransportService _mediaTransport;
     private readonly IOutputRoutingService _outputRouting;
     private readonly IAppActivationService _activation;
     private readonly IOutputWindowService _outputWindows;
@@ -43,19 +56,20 @@ public partial class ShowViewModel : ObservableObject
     private readonly ISlideItemActionService _slideItemActions;
     private readonly IMonitorService _monitors;
     private readonly IMediaLibraryService _mediaLibrary;
-    private readonly IMediaPlaybackCoordinator _playbackCoordinator;
-    private readonly IShowSessionCache _sessionCache;
+    private readonly IMediaStartupWarmupService _mediaWarmup;
+    private readonly IMediaThumbnailCache _mediaThumbnailCache;
+    private readonly MediaTransportPresenter _mediaTransportPresenter;
     private readonly ICuePreparationService _cuePreparation;
     private readonly IShowTransitionDefaults _transitionDefaults;
     private readonly IShowControlsService _showControls;
     private readonly IShowTimerService _showTimers;
-    private readonly IMediaPrewarmService _preWarmService;
-    private readonly MediaCachePrimerService _cachePrimer;
+    private readonly IShowSessionCache _sessionCache;
     private readonly IContentStartupMaintenanceService _contentStartupMaintenance;
     private readonly ILogger<ShowViewModel> _logger;
     private CancellationTokenSource? _sessionLoadCts;
 
     private bool _initialized;
+    private Task? _initializeTask;
 
     // ── Media panel state ────────────────────────────────────────────────────
 
@@ -101,7 +115,7 @@ public partial class ShowViewModel : ObservableObject
 
     /// <summary>When true, thumbnails use <see cref="TransparentThumbnailColor"/> and opacity; when false, checkerboard for transparent slide backgrounds.</summary>
     [ObservableProperty]
-    private bool _transparentThumbnailBackgroundEnabled = true;
+    private bool _transparentThumbnailBackgroundEnabled;
 
     [ObservableProperty]
     private string _transparentThumbnailColor = "#000000";
@@ -122,11 +136,16 @@ public partial class ShowViewModel : ObservableObject
     [ObservableProperty]
     private int _mediaSeekSeconds = 5;
 
+    /// <summary>How inactive layer clear buttons look while still using accent button chrome.</summary>
+    [ObservableProperty]
+    private OutputClearInactiveAppearance _outputClearInactiveAppearance = OutputClearInactiveAppearance.DisabledAccent;
+
     /// <summary>When true, the section-group strip card is visible below the presentation header (single-deck mode).</summary>
     [ObservableProperty]
     private bool _arrangementSectionExpanded;
 
     private bool _loadingDeckPreferences;
+    private bool _deckPreferencesHydrated;
     private CancellationTokenSource? _deckPrefDebounceCts;
 
     private static readonly double[] DeckMinItemWidths = { 160, 190, 220, 260, 300 };
@@ -134,11 +153,14 @@ public partial class ShowViewModel : ObservableObject
 
     /// <summary>Minimum grid cell widths for media drawer cards (8 steps; smaller than slide deck min widths).</summary>
     private static readonly double[] MediaPanelGridMinItemWidths =
-        { 105, 120, 136, 154, 170, 186, 200, 214 };
-
-    private const double MediaPanelGridHeightPerWidth = 196.0 / 240.0;
+        { 116, 132, 150, 168, 186, 204, 220, 236 };
 
     private const int MediaPanelScaleStepMax = 7;
+
+    private const double MediaPanelGridTitleBarHeight = 37;
+
+    /// <summary>Inset between the media grid card outline and its thumbnail frame (matches slide deck preview inset).</summary>
+    public const double MediaPanelGridCardInset = 4;
 
     private string? _selectedLibraryId;
     private string? _selectedPlaylistId;
@@ -173,9 +195,13 @@ public partial class ShowViewModel : ObservableObject
         IPresentationDocumentService presentationDocs,
         IPresentationProjectService projects,
         IWorkspaceService workspace,
-        IPlaybackEngine engine,
-        ILiveProductionFacade liveProduction,
-        ILiveProductionQueryService liveProductionQuery,
+        ICueDispatcher cueDispatcher,
+        ILiveSessionQueryService liveSessionQuery,
+        IOperatorSelectionService operatorSelection,
+        IOutputTargetService outputTargets,
+        IRapidSeekCoordinator rapidSeek,
+        IMediaTransportService mediaTransport,
+        CuePipelineRuntime pipelineRuntime,
         IOutputRoutingService outputRouting,
         IAppActivationService activation,
         IOutputWindowService outputWindows,
@@ -185,14 +211,13 @@ public partial class ShowViewModel : ObservableObject
         ISlideItemActionService slideItemActions,
         IMonitorService monitors,
         IMediaLibraryService mediaLibrary,
-        IMediaPlaybackCoordinator playbackCoordinator,
+        IMediaStartupWarmupService mediaWarmup,
+        IMediaThumbnailCache mediaThumbnailCache,
         IShowSessionCache sessionCache,
         ICuePreparationService cuePreparation,
         IShowTransitionDefaults transitionDefaults,
         IShowControlsService showControls,
         IShowTimerService showTimers,
-        IMediaPrewarmService preWarmService,
-        MediaCachePrimerService cachePrimer,
         IContentStartupMaintenanceService contentStartupMaintenance,
         ILogger<ShowViewModel> logger)
     {
@@ -202,9 +227,13 @@ public partial class ShowViewModel : ObservableObject
         _presentationDocs = presentationDocs;
         _projects = projects ?? throw new ArgumentNullException(nameof(projects));
         _workspace = workspace;
-        _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-        _liveProduction = liveProduction ?? throw new ArgumentNullException(nameof(liveProduction));
-        _liveProductionQuery = liveProductionQuery ?? throw new ArgumentNullException(nameof(liveProductionQuery));
+        _cueDispatcher = cueDispatcher ?? throw new ArgumentNullException(nameof(cueDispatcher));
+        _liveSessionQuery = liveSessionQuery ?? throw new ArgumentNullException(nameof(liveSessionQuery));
+        _operatorSelection = operatorSelection ?? throw new ArgumentNullException(nameof(operatorSelection));
+        _outputTargets = outputTargets ?? throw new ArgumentNullException(nameof(outputTargets));
+        _rapidSeek = rapidSeek ?? throw new ArgumentNullException(nameof(rapidSeek));
+        _mediaTransport = mediaTransport ?? throw new ArgumentNullException(nameof(mediaTransport));
+        _pipeline = pipelineRuntime ?? throw new ArgumentNullException(nameof(pipelineRuntime));
         _outputRouting = outputRouting ?? throw new ArgumentNullException(nameof(outputRouting));
         _activation = activation;
         _outputWindows = outputWindows;
@@ -214,16 +243,16 @@ public partial class ShowViewModel : ObservableObject
         _slideItemActions = slideItemActions ?? throw new ArgumentNullException(nameof(slideItemActions));
         _monitors = monitors ?? throw new ArgumentNullException(nameof(monitors));
         _mediaLibrary = mediaLibrary ?? throw new ArgumentNullException(nameof(mediaLibrary));
-        _playbackCoordinator = playbackCoordinator ?? throw new ArgumentNullException(nameof(playbackCoordinator));
+        _mediaWarmup = mediaWarmup ?? throw new ArgumentNullException(nameof(mediaWarmup));
+        _mediaThumbnailCache = mediaThumbnailCache ?? throw new ArgumentNullException(nameof(mediaThumbnailCache));
         _sessionCache = sessionCache ?? throw new ArgumentNullException(nameof(sessionCache));
         _cuePreparation = cuePreparation ?? throw new ArgumentNullException(nameof(cuePreparation));
         _transitionDefaults = transitionDefaults ?? throw new ArgumentNullException(nameof(transitionDefaults));
         _showControls = showControls ?? throw new ArgumentNullException(nameof(showControls));
         _showTimers = showTimers ?? throw new ArgumentNullException(nameof(showTimers));
-        _preWarmService = preWarmService ?? throw new ArgumentNullException(nameof(preWarmService));
-        _cachePrimer = cachePrimer ?? throw new ArgumentNullException(nameof(cachePrimer));
         _contentStartupMaintenance = contentStartupMaintenance ?? throw new ArgumentNullException(nameof(contentStartupMaintenance));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _mediaTransportPresenter = new MediaTransportPresenter(_mediaTransport, _pipeline);
         InitializeShowControlsCommands();
         Libraries = new ObservableCollection<LibraryDto>();
         Playlists = new ObservableCollection<PlaylistDto>();
@@ -232,10 +261,28 @@ public partial class ShowViewModel : ObservableObject
         Slides = new BulkObservableCollection<PresentationSlide>();
         SlideDeckItems = new BulkObservableCollection<ShowSlideDeckItem>();
         BrowseStackSections = new ObservableCollection<ShowPresentationDeckSection>();
-        _engine.Changed += (_, _) => OnLiveChanged();
-        _liveProductionQuery.Changed += LiveProductionQuery_Changed;
+        _liveSessionQuery.Changed += LiveSessionQuery_Changed;
+        _outputTargets.Changed += (_, _) => RunOnUiThread(OnLiveChanged, "output-targets-changed");
+        _operatorSelection.Changed += (_, _) => RunOnUiThread(OnLiveChanged, "operator-selection-changed");
+        _pipeline.Changed += (_, _) => RunOnUiThread(OnLiveChanged, "pipeline-changed");
         _contentStartupMaintenance.Changed += ContentStartupMaintenance_Changed;
-        RefreshOutputClearActions(_liveProductionQuery.Current);
+        RefreshOutputClearActions(_liveSessionQuery.Current);
+    }
+
+    private static void RunOnUiThread(Action action, string reason)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        Microsoft.UI.Dispatching.DispatcherQueue? dispatcher =
+            App.MainWindow?.DispatcherQueue ?? Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        if (dispatcher == null || dispatcher.HasThreadAccess)
+        {
+            action();
+            return;
+        }
+
+        _ = reason;
+        _ = dispatcher.TryEnqueue(() => action());
     }
 
     public ObservableCollection<LibraryDto> Libraries { get; }
@@ -470,12 +517,30 @@ public partial class ShowViewModel : ObservableObject
     public double MediaPanelGridMinItemWidth =>
         MediaPanelGridMinItemWidths[Math.Clamp(MediaPanelScaleStep, 0, MediaPanelScaleStepMax)];
 
-    /// <summary>Minimum height of each media grid cell, preserving the legacy240×196 card proportion.</summary>
+    /// <summary>Grid-mode thumbnail width for the current media scale step.</summary>
+    public double MediaPanelGridThumbnailWidth => MediaPanelGridMinItemWidth;
+
+    /// <summary>Grid-mode thumbnail height for the current media scale step.</summary>
+    public double MediaPanelGridThumbnailHeight =>
+        Math.Round(MediaPanelGridThumbnailWidth * 9.0 / 16.0, 0);
+
+    /// <summary>Width of the nested thumbnail frame inside a media grid card.</summary>
+    public double MediaPanelGridThumbnailFrameWidth =>
+        Math.Max(0, MediaPanelGridThumbnailWidth - (MediaPanelGridCardInset * 2));
+
+    /// <summary>Height of the nested thumbnail frame inside a media grid card.</summary>
+    public double MediaPanelGridThumbnailFrameHeight =>
+        Math.Max(0, MediaPanelGridThumbnailHeight - MediaPanelGridCardInset);
+
+    /// <summary>Minimum height of each media grid cell, driven by thumbnail height plus the title bar.</summary>
     public double MediaPanelGridMinItemHeight =>
-        Math.Round(MediaPanelGridMinItemWidth * MediaPanelGridHeightPerWidth, 0);
+        MediaPanelGridThumbnailHeight + MediaPanelGridTitleBarHeight;
+
+    /// <summary>Default grid thumbnail width used while a thumbnail is loading or when fallback chrome is shown.</summary>
+    public double MediaPanelGridFallbackThumbnailWidth => MediaPanelGridThumbnailFrameWidth;
 
     /// <summary>
-    /// List-mode thumbnail height per scale step (0–7). Width follows16:9 so the slider meaningfully grows table previews.
+    /// List-mode thumbnail height per scale step (0-7). Width follows 16:9 so the slider meaningfully grows table previews.
     /// </summary>
     private static readonly double[] MediaPanelListThumbHeights =
         { 36, 44, 52, 60, 72, 84, 96, 112 };
@@ -484,8 +549,8 @@ public partial class ShowViewModel : ObservableObject
     public double MediaPanelListThumbHeight =>
         MediaPanelListThumbHeights[Math.Clamp(MediaPanelScaleStep, 0, MediaPanelScaleStepMax)];
 
-    /// <summary>List-mode thumbnail width (16:9 frame to match video previews in the table).</summary>
-    public double MediaPanelListThumbWidth =>
+    /// <summary>List-mode thumbnail width used by both the table header and each row.</summary>
+    public double MediaPanelListThumbnailWidth =>
         Math.Round(MediaPanelListThumbHeight * 16.0 / 9.0, 0);
 
     /// <summary>Minimum list row height so thumbnails and metadata align when scale changes.</summary>
@@ -588,23 +653,42 @@ public partial class ShowViewModel : ObservableObject
         OpenProject?.Slides.FirstOrDefault(slide => string.Equals(slide.Id, SelectedSlideId, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Current program slide (live session), not the operator’s grid selection when audience is off.</summary>
-    public PresentationSlide? LiveSlide =>
-        _engine.Presentation?.Project?.Slides.FirstOrDefault(slide =>
-            string.Equals(slide.Id, _engine.CurrentSlideId, StringComparison.OrdinalIgnoreCase));
+    public PresentationSlide? LiveSlide
+    {
+        get
+        {
+            string? liveSlideId = _liveSessionQuery.Current.LiveSlideId;
+            if (string.IsNullOrWhiteSpace(liveSlideId))
+                return null;
 
-    /// <summary>Shared program-output surface used by audience output, stage output, and the operator preview panel.</summary>
+            string? livePath = _liveSessionQuery.Current.LivePresentationPath;
+            PresentationDocument? document = !string.IsNullOrWhiteSpace(livePath)
+                ? _sessionCache.TryGet(livePath)
+                : OpenDocument;
+            return document?.Project?.Slides.FirstOrDefault(slide =>
+                string.Equals(slide.Id, liveSlideId, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    /// <summary>Shared program-output surface used by the operator preview panel.</summary>
     public OutputViewModel ProgramOutput => _outputViewModel;
 
-    /// <summary>Bindings to live/output state (clear controls, preview).</summary>
-    public ILiveSessionService LiveSession => _engine;
+    /// <summary>Shared observable state for the active media cue playback (used by the output-panel transport row).</summary>
+    public MediaTransportPresenter PlaybackCoordinator => _mediaTransportPresenter;
+
+    /// <summary>Pipeline media transport service.</summary>
+    public IMediaTransportService MediaTransport => _mediaTransport;
+
+    /// <summary>Pipeline-backed live session query surface.</summary>
+    public ILiveSessionQueryService LiveSessionQuery => _liveSessionQuery;
 
     /// <summary>Audience output (bound from Show page and shell title bar).</summary>
     public bool AudienceOutputEnabled
     {
-        get => _engine.IsAudienceEnabled;
+        get => _outputTargets.AudienceEnabled;
         set
         {
-            if (value == _engine.IsAudienceEnabled)
+            if (value == _outputTargets.AudienceEnabled)
                 return;
             _ = SetAudienceEnabledAsync(value);
         }
@@ -613,10 +697,10 @@ public partial class ShowViewModel : ObservableObject
     /// <summary>Stage output (bound from shell title bar).</summary>
     public bool StageOutputEnabled
     {
-        get => _engine.IsStageEnabled;
+        get => _outputTargets.StageEnabled;
         set
         {
-            if (value == _engine.IsStageEnabled)
+            if (value == _outputTargets.StageEnabled)
                 return;
             _ = SetStageEnabledAsync(value);
         }
@@ -637,46 +721,43 @@ public partial class ShowViewModel : ObservableObject
     /// <summary>Reopens audience and stage windows after output settings change and refreshes bound preview layout.</summary>
     public void SyncOutputWindowsAfterSettingsSave()
     {
-        _outputViewModel.RefreshOutputLayoutFromPresentation();
         TryOpenAudienceWindows();
         TryOpenStageWindows();
         NotifyPreviewState();
     }
 
     /// <summary>Audience output toggle (runtime-only; monitor/layout preferences remain persisted separately).</summary>
-    public Task SetAudienceEnabledAsync(bool enabled)
+    public async Task SetAudienceEnabledAsync(bool enabled)
     {
         if (enabled)
         {
-            _engine.SetAudienceEnabled(true);
-            TryOpenAudienceWindows();
+            await _outputTargets.SetAudienceEnabledAsync(true).ConfigureAwait(true);
+            await _outputWindows.OpenAudienceAsync().ConfigureAwait(true);
         }
         else
         {
             _outputWindows.CloseAll();
-            _engine.SetAudienceEnabled(false);
+            await _outputTargets.SetAudienceEnabledAsync(false).ConfigureAwait(true);
         }
 
         OnPropertyChanged(nameof(AudienceOutputEnabled));
-        return Task.CompletedTask;
     }
 
     /// <summary>Stage output toggle (runtime-only; monitor preferences remain persisted separately).</summary>
-    public Task SetStageEnabledAsync(bool enabled)
+    public async Task SetStageEnabledAsync(bool enabled)
     {
         if (enabled)
         {
-            _engine.SetStageEnabled(true);
-            TryOpenStageWindows();
+            await _outputTargets.SetStageEnabledAsync(true).ConfigureAwait(true);
+            await _outputWindows.OpenStageAsync().ConfigureAwait(true);
         }
         else
         {
             _outputWindows.CloseStage();
-            _engine.SetStageEnabled(false);
+            await _outputTargets.SetStageEnabledAsync(false).ConfigureAwait(true);
         }
 
         OnPropertyChanged(nameof(StageOutputEnabled));
-        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -693,6 +774,93 @@ public partial class ShowViewModel : ObservableObject
         CoerceSelectionToCatalog();
         NotifyCenterPanes();
         RefreshBrowseStackFromSelection();
+    }
+
+    /// <summary>
+    /// Updates deck rows in place when a slide mutation only changes slide content (same deck shape).
+    /// Avoids rebuilding <see cref="SlideDeckItems"/> and flashing thumbnails after Quick Edit apply.
+    /// </summary>
+    public Task<bool> TryApplyInPlaceSlideMutationAsync(SlideItemMutationResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        if (!PathsMatchNullable(SelectedPresentationPath, result.PresentationPath)
+            || OpenDocument?.Project is null
+            || result.Project.Slides.Count != OpenDocument.Project.Slides.Count)
+            return Task.FromResult(false);
+
+        var currentIds = OpenDocument.Project.Slides.Select(static slide => slide.Id).ToList();
+        var updatedIds = result.Project.Slides.Select(static slide => slide.Id).ToList();
+        if (!currentIds.SequenceEqual(updatedIds, StringComparer.OrdinalIgnoreCase))
+            return Task.FromResult(false);
+
+        var refreshedDocument = _sessionCache.GetOrLoad(result.PresentationPath) ?? OpenDocument;
+        OpenDocument = refreshedDocument;
+        Slides.ReplaceAll(result.Project.Slides);
+        _activePresentation.SetCurrentPresentation(result.Project, result.PresentationPath);
+
+        foreach (ShowSlideDeckItem item in EnumerateDeckThumbnailItems())
+        {
+            if (!PathsMatchNullable(ResolveItemPresentationPath(item), result.PresentationPath))
+                continue;
+
+            PresentationSlide? updatedSlide = result.Project.Slides.FirstOrDefault(slide =>
+                string.Equals(slide.Id, item.Slide.Id, StringComparison.OrdinalIgnoreCase));
+            if (updatedSlide is not null)
+                item.ApplySlideModel(updatedSlide);
+        }
+
+        RefreshAllSlideDeckState();
+        NotifyCenterPanes();
+        NotifyArrangementState();
+        return Task.FromResult(true);
+    }
+
+    /// <summary>Re-dispatches the live slide layer from the deck row's current preview slide.</summary>
+    public async Task RefreshLiveSlidePreviewAsync(ShowSlideDeckItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (!item.IsLive)
+            return;
+
+        string? presentationPath = ResolveItemPresentationPath(item);
+        if (string.IsNullOrWhiteSpace(presentationPath))
+            return;
+
+        PresentationDocument? document = _sessionCache.GetOrLoad(presentationPath) ?? OpenDocument;
+        if (document?.Project == null)
+            return;
+
+        PreparedSlideCue? prepared = await _cuePreparation.PreparePreviewSlideCueAsync(
+            document,
+            item.ThumbnailPreviewSlide,
+            item.InstanceKey).ConfigureAwait(true);
+        if (prepared == null)
+            return;
+
+        _ = _cueDispatcher.DispatchSlideCueAsync(prepared with
+        {
+            LayerKind = ResolvePresentationDestinationLayer(presentationPath),
+        });
+    }
+
+    /// <summary>Refreshes the live slide output after a saved in-place text mutation.</summary>
+    public async Task RefreshLiveSlideAfterMutationAsync(SlideItemMutationResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (string.IsNullOrWhiteSpace(result.SelectedSlideId))
+            return;
+
+        _cuePreparation.InvalidatePresentationCues(result.PresentationPath);
+
+        ShowSlideDeckItem? liveItem = EnumerateDeckThumbnailItems().FirstOrDefault(item =>
+            item.IsLive
+            && string.Equals(item.Slide.Id, result.SelectedSlideId, StringComparison.OrdinalIgnoreCase)
+            && PathsMatchNullable(ResolveItemPresentationPath(item), result.PresentationPath));
+        if (liveItem == null)
+            return;
+
+        await RefreshLiveSlidePreviewAsync(liveItem).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -734,7 +902,7 @@ public partial class ShowViewModel : ObservableObject
         StopAutoAdvance();
         ApplySlideSelectionState(null, null, userOverride: false);
         _activePresentation.SetCurrentPresentation(null, null);
-        _engine.EndLive();
+        _ = _cueDispatcher.EndLiveAsync();
         RefreshBrowseStackFromSelection();
         NotifyPreviewState();
         NotifyArrangementState();
@@ -784,46 +952,64 @@ public partial class ShowViewModel : ObservableObject
         return await OpenPresentationFromPathAsync(file.Path).ConfigureAwait(true);
     }
 
-    public async Task InitializeAsync()
+    /// <summary>True after the first <see cref="InitializeAsync"/> completes successfully.</summary>
+    public bool IsWorkspaceInitialized => _initialized;
+
+    public Task InitializeAsync()
     {
-        if (_initialized)
-            return;
+        if (_initializeTask is not null)
+            return _initializeTask;
 
-        _initialized = true;
+        _initializeTask = InitializeCoreAsync();
+        return _initializeTask;
+    }
 
-        await _workspace.LoadAsync().ConfigureAwait(true);
-
-        LoadDeckPreferences();
-        RefreshCatalogCollections();
-        LoadWorkspaceIntoViewModel();
-
-        var pending = _activation.ConsumePendingPresentationPath();
-        if (!string.IsNullOrWhiteSpace(pending) && File.Exists(pending))
+    private async Task InitializeCoreAsync()
+    {
+        try
         {
-            await OpenPresentationFromPathAsync(pending).ConfigureAwait(true);
-            return;
-        }
+            // Deck prefs (global slide/media transitions, layout, etc.) must not read
+            // default Settings before portable Show.json has been loaded from disk.
+            _deckPreferencesHydrated = false;
+            await _settings.LoadAsync().ConfigureAwait(true);
+            await _workspace.LoadAsync().ConfigureAwait(true);
 
-        if (string.IsNullOrWhiteSpace(SelectedPresentationPath)
-            && string.IsNullOrWhiteSpace(SelectedLibraryId)
-            && string.IsNullOrWhiteSpace(SelectedPlaylistId))
-        {
-            var initial = StartupWorkspaceSelector.TrySelectInitial(_catalog.Catalog, _settings.Settings);
-            if (initial != null)
-                ApplyWorkspaceDto(initial);
-        }
+            LoadDeckPreferences();
+            RefreshCatalogCollections();
+            LoadWorkspaceIntoViewModel();
 
-        EnsureDefaultSelection();
+            var pending = _activation.ConsumePendingPresentationPath();
+            if (!string.IsNullOrWhiteSpace(pending) && File.Exists(pending))
+            {
+                await OpenPresentationFromPathAsync(pending).ConfigureAwait(true);
+                return;
+            }
 
-        // Tree was first built before workspace selection was applied; recompute expand state for the selected source.
-        RebuildSidebarTree();
-        NotifyCenterPanes();
-        RefreshBrowseStackFromSelection();
+            if (string.IsNullOrWhiteSpace(SelectedPresentationPath)
+                && string.IsNullOrWhiteSpace(SelectedLibraryId)
+                && string.IsNullOrWhiteSpace(SelectedPlaylistId))
+            {
+                var initial = StartupWorkspaceSelector.TrySelectInitial(_catalog.Catalog, _settings.Settings);
+                if (initial != null)
+                    ApplyWorkspaceDto(initial);
+            }
 
-        if (!string.IsNullOrWhiteSpace(SelectedPresentationPath))
-            await OpenPresentationFromPathAsync(SelectedPresentationPath!).ConfigureAwait(true);
-        else
+            EnsureDefaultSelection();
+
+            // Tree was first built before workspace selection was applied; recompute expand state for the selected source.
+            RebuildSidebarTree();
             NotifyCenterPanes();
+            RefreshBrowseStackFromSelection();
+
+            if (!string.IsNullOrWhiteSpace(SelectedPresentationPath))
+                await OpenPresentationFromPathAsync(SelectedPresentationPath!).ConfigureAwait(true);
+            else
+                NotifyCenterPanes();
+        }
+        finally
+        {
+            _initialized = true;
+        }
     }
 
     private void NotifyCenterPanes()
@@ -1147,6 +1333,46 @@ public partial class ShowViewModel : ObservableObject
         RebuildGroupedSections();
         RefreshAllSlideDeckState();
         OnPropertyChanged(nameof(SelectedDeckRowForView));
+        QueueVisibleDeckCueWarmup();
+    }
+
+    private void QueueVisibleDeckCueWarmup()
+    {
+        PresentationDocument? document = OpenDocument;
+        if (document == null || SlideDeckItems.Count == 0)
+            return;
+
+        ShowSlideDeckItem[] items = SlideDeckItems
+            .Where(static item => !item.Slide.Disabled)
+            .Take(MaxVisibleDeckCueWarmups)
+            .ToArray();
+        if (items.Length == 0)
+            items = SlideDeckItems.Take(MaxVisibleDeckCueWarmups).ToArray();
+
+        _ = WarmVisibleDeckCueAsync(document, items);
+    }
+
+    private async Task WarmVisibleDeckCueAsync(PresentationDocument document, IReadOnlyList<ShowSlideDeckItem> items)
+    {
+        if (items.Count == 0)
+            return;
+
+        string presentationPath = document.SourcePath;
+        foreach (ShowSlideDeckItem item in items)
+        {
+            try
+            {
+                PreparedSlideCue? prepared = _cuePreparation.GetPreparedSlideCue(presentationPath, item.Slide.Id, item.InstanceKey)
+                    ?? await _cuePreparation.PrepareSlideCueAsync(presentationPath, item.Slide.Id, item.InstanceKey, document).ConfigureAwait(true);
+
+                if (prepared != null)
+                    await _mediaWarmup.WarmPreparedSlideMediaAsync(prepared).ConfigureAwait(true);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogDebug(ex, "Could not warm prepared cue for slide {SlideId}.", item.Slide.Id);
+            }
+        }
     }
 
     /// <summary>
@@ -1223,7 +1449,7 @@ public partial class ShowViewModel : ObservableObject
 
     private bool IsSlideItemLive(ShowSlideDeckItem item)
     {
-        LiveLayerStateQuery? slideLayer = _liveProductionQuery.Current.ActiveLayers.FirstOrDefault(static layer =>
+        LiveLayerStateQuery? slideLayer = _liveSessionQuery.Current.ActiveLayers.FirstOrDefault(static layer =>
             layer.Kind == OutputLayerKind.Slide);
         if (slideLayer is not { IsLive: true }
             || string.IsNullOrWhiteSpace(slideLayer.PayloadId))
@@ -1245,7 +1471,7 @@ public partial class ShowViewModel : ObservableObject
         return PathsMatchNullable(itemPath, slideLayer.PayloadPresentationPath);
     }
 
-    /// <summary>Invalidate slide deck chrome after light/dark theme change (theme brush lookups).</summary>
+    /// <summary>Refresh slide deck chrome after light/dark theme change (theme brush lookups; thumbnails unchanged).</summary>
     public void NotifySlideDeckThemeChromeChanged()
     {
         foreach (var item in SlideDeckItems)
@@ -1259,6 +1485,35 @@ public partial class ShowViewModel : ObservableObject
         {
             foreach (var item in section.SlideRows)
                 item.NotifyThemeChromeChanged();
+        }
+    }
+
+    /// <summary>All deck rows that display slide thumbnails (single deck, browse stack, grouped views).</summary>
+    public IEnumerable<ShowSlideDeckItem> EnumerateDeckThumbnailItems()
+    {
+        var seen = new HashSet<ShowSlideDeckItem>();
+        foreach (ShowSlideDeckItem item in SlideDeckItems)
+        {
+            if (seen.Add(item))
+                yield return item;
+        }
+
+        foreach (ShowPresentationDeckSection section in BrowseStackSections)
+        {
+            foreach (ShowSlideDeckItem item in section.SlideRows)
+            {
+                if (seen.Add(item))
+                    yield return item;
+            }
+        }
+
+        foreach (ShowPresentationDeckSection section in SlideDeckGroupedSections)
+        {
+            foreach (ShowSlideDeckItem item in section.SlideRows)
+            {
+                if (seen.Add(item))
+                    yield return item;
+            }
         }
     }
 }

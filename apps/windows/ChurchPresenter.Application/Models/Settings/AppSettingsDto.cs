@@ -102,7 +102,7 @@ public sealed class ShowSettingsDto
 
     /// <summary>When true, slide thumbnails use the custom colour and opacity below; when false, transparent slide areas show the checkerboard.</summary>
     [JsonPropertyName("transparentThumbnailBackgroundEnabled")]
-    public bool TransparentThumbnailBackgroundEnabled { get; set; } = true;
+    public bool TransparentThumbnailBackgroundEnabled { get; set; }
 
     /// <summary>Solid background colour shown behind transparent-background slide thumbnails (#RRGGBB). Empty string means use checkerboard.</summary>
     [JsonPropertyName("transparentThumbnailColor")]
@@ -123,6 +123,10 @@ public sealed class ShowSettingsDto
     /// <summary>Number of seconds the media transport seek buttons move backward or forward.</summary>
     [JsonPropertyName("mediaSeekSeconds")]
     public int MediaSeekSeconds { get; set; } = 5;
+
+    /// <summary>Idle layer clear button look: "disabledAccent" | "transparent" | "controlFill".</summary>
+    [JsonPropertyName("outputClearInactiveAppearance")]
+    public string OutputClearInactiveAppearance { get; set; } = "disabledAccent";
 
     [JsonPropertyName("timers")]
     public List<ShowTimerDefinition> Timers { get; set; } = new();

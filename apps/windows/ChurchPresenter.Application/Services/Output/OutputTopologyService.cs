@@ -47,7 +47,10 @@ public sealed class OutputTopologyService(
         IReadOnlyList<MonitorInfoDto> connectedDisplays = _displays.GetDisplays();
         Dictionary<int, MonitorInfoDto> connectedByIndex = connectedDisplays.ToDictionary(display => display.Index);
 
-        Dictionary<string, OutputScreen> screens = BuildScreens();
+        IReadOnlyList<int> audienceMonitorIndices = ParseMonitorIds(_settings.Settings.Output.AudienceMonitorIds);
+        IReadOnlyList<int> stageMonitorIndices = ParseMonitorIds(_settings.Settings.Output.StageMonitorIds);
+
+        Dictionary<string, OutputScreen> screens = BuildScreens(connectedByIndex, audienceMonitorIndices, stageMonitorIndices);
         Dictionary<string, OutputEndpoint> endpoints = connectedDisplays.ToDictionary(
             display => GetLocalDisplayEndpointId(display.Index),
             CreateConnectedDisplayEndpoint,
@@ -61,9 +64,6 @@ public sealed class OutputTopologyService(
             LobbyPlaceholderEndpointId,
             "Lobby Placeholder",
             EndpointCapability.Placeholder | EndpointCapability.UserToggle | EndpointCapability.Mirror);
-
-        IReadOnlyList<int> audienceMonitorIndices = ParseMonitorIds(_settings.Settings.Output.AudienceMonitorIds);
-        IReadOnlyList<int> stageMonitorIndices = ParseMonitorIds(_settings.Settings.Output.StageMonitorIds);
 
         AddMissingDisplayEndpoints(endpoints, audienceMonitorIndices.Concat(stageMonitorIndices));
 
@@ -90,8 +90,14 @@ public sealed class OutputTopologyService(
         };
     }
 
-    private static Dictionary<string, OutputScreen> BuildScreens()
+    private static Dictionary<string, OutputScreen> BuildScreens(
+        IReadOnlyDictionary<int, MonitorInfoDto> connectedByIndex,
+        IReadOnlyList<int> audienceMonitorIndices,
+        IReadOnlyList<int> stageMonitorIndices)
     {
+        PixelSize audienceSize = ResolveMappedDisplaySize(connectedByIndex, audienceMonitorIndices);
+        PixelSize stageSize = ResolveMappedDisplaySize(connectedByIndex, stageMonitorIndices);
+
         return new[]
         {
             new OutputScreen
@@ -99,7 +105,7 @@ public sealed class OutputTopologyService(
                 Id = OutputScreenIds.Main,
                 Name = "Main",
                 Kind = OutputScreenKind.Audience,
-                RenderSize = PixelSize.FullHd,
+                RenderSize = audienceSize,
                 AlphaMode = RenderAlphaMode.Opaque,
             },
             new OutputScreen
@@ -123,10 +129,28 @@ public sealed class OutputTopologyService(
                 Id = OutputScreenIds.Stage,
                 Name = "Stage",
                 Kind = OutputScreenKind.Stage,
-                RenderSize = PixelSize.FullHd,
+                RenderSize = stageSize,
                 AlphaMode = RenderAlphaMode.Opaque,
             },
         }.ToDictionary(screen => screen.Id, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static PixelSize ResolveMappedDisplaySize(
+        IReadOnlyDictionary<int, MonitorInfoDto> connectedByIndex,
+        IReadOnlyList<int> monitorIndices)
+    {
+        foreach (int monitorIndex in monitorIndices)
+        {
+            if (connectedByIndex.TryGetValue(monitorIndex, out MonitorInfoDto? monitor))
+                return new PixelSize(Math.Max(1, monitor.Width), Math.Max(1, monitor.Height));
+        }
+
+        MonitorInfoDto? primary = connectedByIndex.Values.FirstOrDefault(static monitor => monitor.IsPrimary)
+            ?? connectedByIndex.Values.FirstOrDefault();
+        if (primary is not null)
+            return new PixelSize(Math.Max(1, primary.Width), Math.Max(1, primary.Height));
+
+        return PixelSize.FullHd;
     }
 
     private static ScreenMapping CreateScreenMapping(string screenId, IEnumerable<int> monitorIndices)

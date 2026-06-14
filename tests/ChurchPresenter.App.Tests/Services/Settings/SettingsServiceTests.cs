@@ -232,7 +232,7 @@ public sealed class SettingsServiceTests
 
         settings.Show.DeckViewMode.Should().Be("thumbnail");
         settings.Show.GroupBySection.Should().BeFalse();
-        settings.Show.TransparentThumbnailBackgroundEnabled.Should().BeTrue();
+        settings.Show.TransparentThumbnailBackgroundEnabled.Should().BeFalse();
         settings.Show.TransparentThumbnailColor.Should().Be("#000000");
         settings.Show.DeckScaleStep.Should().Be(2);
     }
@@ -390,6 +390,31 @@ public sealed class SettingsServiceTests
     }
 
     [Fact]
+    public void Update_preserves_global_transitions_when_only_unrelated_show_fields_change()
+    {
+        var (_, root) = CreateService();
+        var svc = CreateService(root);
+        svc.Update(s =>
+        {
+            s.Show.GlobalSlideTransition = new ShowToolbarTransitionDto
+            {
+                Mode = "dissolve",
+                DissolveDurationMs = 750,
+            };
+            s.Show.GlobalMediaTransition = new ShowToolbarTransitionDto
+            {
+                Mode = "cut",
+            };
+        });
+
+        svc.Update(s => s.Show.DeckViewMode = "list");
+
+        svc.Settings.Show.GlobalSlideTransition.Mode.Should().Be("dissolve");
+        svc.Settings.Show.GlobalSlideTransition.DissolveDurationMs.Should().Be(750);
+        svc.Settings.Show.GlobalMediaTransition.Mode.Should().Be("cut");
+    }
+
+    [Fact]
     public async Task LoadAsync_missing_deck_fields_uses_defaults()
     {
         var (svc, root) = CreateService();
@@ -408,7 +433,7 @@ public sealed class SettingsServiceTests
         svc.Settings.Show.DeckViewMode.Should().Be("thumbnail",
             "omitted field should default to thumbnail");
         svc.Settings.Show.GroupBySection.Should().BeFalse();
-        svc.Settings.Show.TransparentThumbnailBackgroundEnabled.Should().BeTrue();
+        svc.Settings.Show.TransparentThumbnailBackgroundEnabled.Should().BeFalse();
         svc.Settings.Show.TransparentThumbnailColor.Should().Be("#000000");
         svc.Settings.Show.DeckScaleStep.Should().Be(2);
     }

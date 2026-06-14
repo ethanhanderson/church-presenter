@@ -1,3 +1,5 @@
+using ChurchPresenter.Backend.Rendering;
+
 namespace ChurchPresenter.Models.Themes;
 
 /// <summary>
@@ -61,5 +63,34 @@ public static class TransitionResolver
             return null;
 
         return transition;
+    }
+
+    /// <summary>
+    /// Converts a normalized document transition into the layer transition contract consumed by output hosts.
+    /// </summary>
+    /// <param name="transition">The document, cue, or Show fallback transition.</param>
+    /// <returns>A pending layer transition, or <see cref="LayerTransitionState.None"/> for no transition.</returns>
+    public static LayerTransitionState ToLayerTransition(SlideTransition? transition)
+    {
+        var normalized = Normalize(transition);
+        if (normalized == null)
+            return LayerTransitionState.None;
+
+        string type = normalized.Type.Trim().ToLowerInvariant();
+        Dictionary<string, string> parameters = normalized.Parameters == null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(normalized.Parameters, StringComparer.OrdinalIgnoreCase);
+        parameters.TryGetValue("direction", out string? directionValue);
+
+        return new LayerTransitionState
+        {
+            Type = type,
+            Kind = TransitionContract.ParseKind(type),
+            Direction = TransitionContract.ParseDirection(directionValue),
+            Easing = string.IsNullOrWhiteSpace(normalized.Easing) ? null : normalized.Easing.Trim(),
+            Parameters = parameters,
+            Duration = TimeSpan.FromMilliseconds(Math.Max(0, normalized.Duration)),
+            Phase = LayerTransitionPhase.Pending,
+        };
     }
 }

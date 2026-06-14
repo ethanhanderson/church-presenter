@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 
 using ChurchPresenter.Backend.Rendering;
+using ChurchPresenter.Services.Pipeline;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,26 +15,27 @@ namespace ChurchPresenter.ViewModels;
 
 public partial class ShowViewModel
 {
-    private void LiveProductionQuery_Changed(object? sender, LiveProductionQueryChangedEventArgs args)
+    private void LiveSessionQuery_Changed(object? sender, LiveSessionQueryChangedEventArgs args)
     {
         var dispatcher = App.MainWindow?.DispatcherQueue;
         if (dispatcher == null || dispatcher.HasThreadAccess)
         {
-            RefreshLiveProductionState(args.Snapshot);
+            RefreshLiveSessionState(args.Snapshot);
             return;
         }
 
-        dispatcher.TryEnqueue(() => RefreshLiveProductionState(args.Snapshot));
+        dispatcher.TryEnqueue(() => RefreshLiveSessionState(args.Snapshot));
     }
 
-    private void RefreshLiveProductionState(LiveProductionQuerySnapshot snapshot)
+    private void RefreshLiveSessionState(LiveSessionQuerySnapshot snapshot)
     {
         RefreshOutputClearActions(snapshot);
         RefreshAllSlideDeckState();
+        _mediaTransportPresenter.Refresh();
         _ = LoadShowControlsAsync();
     }
 
-    private void RefreshOutputClearActions(LiveProductionQuerySnapshot snapshot)
+    private void RefreshOutputClearActions(LiveSessionQuerySnapshot snapshot)
     {
         HashSet<OutputLayerKind> liveLayers = snapshot.ActiveLayers
             .Where(static layer => layer.IsLive)
@@ -54,7 +56,7 @@ public partial class ShowViewModel
             })
             .ToArray();
 
-        LiveClearGroupQuery[] configuredGroups = snapshot.Generated.ClearGroups.ToArray();
+        LiveClearGroupQuery[] configuredGroups = snapshot.ClearGroups.ToArray();
 
         ShowClearActionViewModel[] secondaryActions = configuredGroups
             .Select(group => new ShowClearActionViewModel
@@ -76,10 +78,15 @@ public partial class ShowViewModel
         ApplyLeadingDividers(primaryActions);
         ApplyLeadingDividers(secondaryActions);
 
-        ReplaceActions(PrimaryOutputClearActions, primaryActions);
-        ReplaceActions(SecondaryOutputClearActions, secondaryActions);
-        ReplaceActions(OutputClearActions, primaryActions.Concat(secondaryActions));
-        OnPropertyChanged(nameof(HasSecondaryOutputClearActions));
+        int previousSecondaryCount = SecondaryOutputClearActions.Count;
+        SynchronizeActions(PrimaryOutputClearActions, primaryActions);
+        SynchronizeActions(SecondaryOutputClearActions, secondaryActions);
+        SynchronizeActions(
+            OutputClearActions,
+            PrimaryOutputClearActions.Concat(SecondaryOutputClearActions));
+
+        if (previousSecondaryCount != SecondaryOutputClearActions.Count)
+            OnPropertyChanged(nameof(HasSecondaryOutputClearActions));
     }
 
     /// <summary>Whether the secondary custom clear-groups bar has any visible saved groups.</summary>
@@ -91,13 +98,41 @@ public partial class ShowViewModel
             actions[i].HasLeadingDivider = i > 0;
     }
 
-    private static void ReplaceActions(
+    private static void SynchronizeActions(
         ObservableCollection<ShowClearActionViewModel> target,
         IEnumerable<ShowClearActionViewModel> actions)
     {
+        ShowClearActionViewModel[] nextActions = actions.ToArray();
+        if (CanReuseActions(target, nextActions))
+        {
+            for (int i = 0; i < target.Count; i++)
+                target[i].UpdateLiveState(nextActions[i].IsActive);
+
+            ApplyLeadingDividers(target);
+            return;
+        }
+
         target.Clear();
-        foreach (ShowClearActionViewModel action in actions)
+        foreach (ShowClearActionViewModel action in nextActions)
             target.Add(action);
+
+        ApplyLeadingDividers(target);
+    }
+
+    private static bool CanReuseActions(
+        IReadOnlyList<ShowClearActionViewModel> current,
+        IReadOnlyList<ShowClearActionViewModel> next)
+    {
+        if (current.Count != next.Count)
+            return false;
+
+        for (int i = 0; i < current.Count; i++)
+        {
+            if (!current[i].HasSameDefinition(next[i]))
+                return false;
+        }
+
+        return true;
     }
 
     private void ClearOutputAction(ShowClearActionViewModel? action)
@@ -107,26 +142,16 @@ public partial class ShowViewModel
 
         if (!string.IsNullOrWhiteSpace(action.ClearGroupId))
         {
-            _liveProduction.ClearGroup(action.ClearGroupId);
+            _ = _cueDispatcher.ClearGroupAsync(action.ClearGroupId);
             return;
         }
 
         if (action.Layers.Count > 0)
-            _liveProduction.ClearLayers(action.Layers);
+            _ = _cueDispatcher.ClearLayersAsync(action.Layers);
     }
 
-    private bool CanClearOutputAction(ShowClearActionViewModel? action)
-    {
-        if (action == null)
-            return false;
-
-        HashSet<OutputLayerKind> targetLayers = action.Layers.ToHashSet();
-        if (targetLayers.Count == 0)
-            return false;
-
-        return _liveProductionQuery.Current.ActiveLayers.Any(layer =>
-            targetLayers.Contains(layer.Kind) && layer.IsLive);
-    }
+    private bool CanClearOutputAction(ShowClearActionViewModel? action) =>
+        action?.IsActive == true;
 
     private static int GetClearActionSortRank(ShowClearActionViewModel action)
     {
@@ -240,7 +265,8 @@ public sealed partial class ShowClearActionViewModel : ObservableObject
     public IReadOnlyList<OutputLayerKind> Layers { get; init; } = Array.Empty<OutputLayerKind>();
 
     /// <summary>Whether any target layer currently contributes output.</summary>
-    public bool IsActive { get; init; }
+    [ObservableProperty]
+    private bool _isActive;
 
     /// <summary>Whether this action should draw a divider before itself.</summary>
     public bool HasLeadingDivider { get; set; }
@@ -270,6 +296,32 @@ public sealed partial class ShowClearActionViewModel : ObservableObject
 
     /// <summary>Callback used to determine whether this action can run.</summary>
     public Func<ShowClearActionViewModel, bool>? CanExecuteRequested { get; init; }
+
+    /// <summary>Updates live-state visuals while preserving the generated button container.</summary>
+    public bool UpdateLiveState(bool isActive)
+    {
+        if (IsActive == isActive)
+            return false;
+
+        IsActive = isActive;
+        OnPropertyChanged(nameof(ButtonBackgroundBrush));
+        OnPropertyChanged(nameof(IconBackgroundBrush));
+        ExecuteCommand.NotifyCanExecuteChanged();
+        return true;
+    }
+
+    /// <summary>Checks whether a refreshed projection still describes the same clear action.</summary>
+    public bool HasSameDefinition(ShowClearActionViewModel other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return string.Equals(Id, other.Id, StringComparison.Ordinal)
+            && string.Equals(Label, other.Label, StringComparison.Ordinal)
+            && string.Equals(IconGlyph, other.IconGlyph, StringComparison.Ordinal)
+            && string.Equals(ClearGroupId, other.ClearGroupId, StringComparison.Ordinal)
+            && TintEnabled == other.TintEnabled
+            && string.Equals(TintColor, other.TintColor, StringComparison.Ordinal)
+            && Layers.SequenceEqual(other.Layers);
+    }
 
     [RelayCommand(CanExecute = nameof(CanExecute))]
     private void Execute() => ExecuteRequested?.Invoke(this);

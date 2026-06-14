@@ -2,7 +2,7 @@
 
 This document defines how a modern native macOS ChurchPresenter app should implement the shared architecture in `docs/architecture/`. It is intentionally subordinate to the platform-agnostic contracts:
 
-- Product semantics, command execution, live state, output routing, content graph, packages, diagnostics, and recovery are defined by [`target-architecture.md`](../target-architecture.md), [`backend-application.md`](../backend-application.md), [`content-management.md`](../content-management.md), [`rendering-engine-replacement.md`](../rendering-engine-replacement.md), and [`file-access-and-cache-resilience.md`](../file-access-and-cache-resilience.md).
+- Product semantics, command execution, live state, output routing, content graph, packages, diagnostics, and recovery are defined by [`target-architecture.md`](../target-architecture.md), [`backend-application.md`](../backend-application.md), [`content-management.md`](../content-management.md), [`native-hosts.md`](../native-hosts.md), and [`file-access-and-cache-resilience.md`](../file-access-and-cache-resilience.md).
 - macOS owns only the native host concerns described in [`native-hosts.md`](../native-hosts.md): windows, menus, views, platform adapters, display and media APIs, accessibility, security prompts, packaging, and app lifecycle.
 - The ProPresenter feature reference in [`features.md`](../../reference/propresenter/features.md) informs the shared model. This document does not add a second product model for macOS.
 
@@ -164,6 +164,10 @@ Rules:
 - Document edits, generated content updates, package operations, and relink operations should call application services and receive graph-aware results.
 - Live-edit-safe document changes should invalidate future prepared cues and render caches without tearing down the currently live payload unless a command replaces that payload.
 
+Live-status controls should use stable observable models. Apple documents SwiftUI model-data separation and Observation as the way views update when observable model properties change; ChurchPresenter should apply that pattern to runtime query projections rather than letting SwiftUI view identity become live production truth. A `ClearActionViewModel` or row model should be `Identifiable` by the built-in layer action id or configured clear-group id. When runtime state reports the same actions with a different active flag, update the existing observable object's `isActive`, enabled state, and tint/appearance projection; do not replace the list row, recreate AppKit controls, or swap duplicate active/inactive views.
+
+For clear controls, active means the target layer set currently has live content according to the runtime snapshot. It does not mean the clear command was recently dispatched, the button is focused, a media item became ready, an output window refreshed, or the selected item changed. Equivalent live-session projections should be suppressed in the runtime bridge before they invalidate SwiftUI/AppKit surfaces.
+
 ## Display and Output Host
 
 Use AppKit and Core Graphics for display discovery and output window management.
@@ -183,7 +187,9 @@ Output windows should be owned by an `OutputWindowController`, not by SwiftUI vi
 - use an AppKit content view that hosts the renderer surface,
 - subscribe only to resolved frames for its logical screen,
 - apply diffs from immutable frames,
-- surface AppKit/window failures as host diagnostics.
+- surface AppKit/window failures as host diagnostics,
+- keep an opaque fallback/background layer behind all content layers for local-display audience output unless an explicit alpha/key/capture endpoint mode requires transparency,
+- make display reconciliation idempotent: unchanged logical screen, endpoint, `NSScreen`, frame, backing scale, and presentation mode should not recreate `NSWindow`, replace the content view, rebuild layer slots, or rebind `AVPlayer` presentation layers.
 
 For fullscreen behavior:
 
@@ -193,20 +199,38 @@ For fullscreen behavior:
 
 When displays change, the adapter should not mutate portable screen or Look records. It should update machine-local endpoint state and ask the runtime for remap/recovery options.
 
-## Rendering Adapter
+The macOS host should treat `NSScreen` polling, `NSApplication.didChangeScreenParametersNotification`, focus changes, Spaces/fullscreen events, and window-order corrections as endpoint health reconciliation. If the active output controller already matches the requested endpoint, those events must not be translated into content reloads. A media layer playing through `AVPlayerLayer` or renderer-owned sample buffers should continue with the same runtime player identity while unrelated display-health checks occur.
 
-The macOS renderer consumes host-neutral scenes and frames from `rendering-engine-replacement.md`.
+## Unified Output Pipeline And Rendering Adapter
+
+The macOS host implements the **unified output pipeline** defined in [`target-architecture.md`](../target-architecture.md) and [`backend-application.md`](../backend-application.md). The shared application layer owns the command bus, cue preparation, prepared-cue cache, layer router, and frame composer. macOS owns the host adapter bindings and the platform-specific resource handles.
+
+Pipeline mapping on macOS:
+
+- Command bus: an `AsyncStream<LiveCommand>` (or `AsyncChannel`) drained by a single executor `Task` actor; UI dispatch back to SwiftUI/AppKit uses `MainActor.run { ... }`.
+- Cue preparation: background `Task`s coordinated by a cue-preparation actor. Preparation opens `AVAsset`/`AVPlayerItem`, compiles scene graphs, warms `CALayer`/`MTLTexture` resources, and resolves theme/token bindings before a cue is taken live.
+- Prepared-cue cache: an `NSCache`-backed store with `totalCostLimit` per tier and entry cost set from decoded byte size + retained surface count. Hot entries retain `AVPlayerItem`s and texture pools; warm entries spill to on-disk caches.
+- Layer router: shared application code; macOS does not reorder or substitute layer slots.
+- Frame composer: produces per-screen `AudienceFrameSet` / `StageFrameSet` diffs that the macOS host applies per layer slot.
+- Host adapter: per output window, a `CALayer`-tree renderer that maintains a persistent root `CALayer` per logical screen at the screen's topology `RenderSize` (native display pixels when mapped) and one child `CALayer` per fixed layer slot (Audio, Messages, Props, Announcements, Slide, Media, Live Video, Mask).
 
 Suggested implementation:
 
 - Build a renderer facade with separate consumers for audience output, stage output, operator preview, thumbnails, editor canvas, screen preview/multiview, and diagnostics snapshots.
-- Use a Core Animation layer tree for straightforward 2D composition where it is sufficient.
-- Use Metal-backed rendering for high-layer-count output, advanced blending, masks, alpha/key output, EDR/HDR paths, screen capture/export surfaces, and performance-critical previews.
-- Use `CAMetalLayer` or `MTKView` for output and preview surfaces that need frame pacing, backing-scale control, and low-overhead display.
-- Use Core Text, AttributedString, or TextKit-backed layout in the adapter for `TextSceneNode` rendering, but keep measured layout results tied to scene/resource stamps.
+- Mount each output `NSWindow`'s content view with `wantsLayer = true` and host the per-screen root `CALayer`. Add one persistent child layer per fixed layer slot; never recreate slot layers per cue.
+- Put the screen fallback/background on the per-screen root layer, below the fixed content-layer stack. Clearing Slide, Media, Messages, Props, Announcements, Live Video, or Mask should reveal that fallback layer, not an empty `NSWindow` or another app behind the output display.
+- Use a Core Animation layer tree for straightforward 2D composition where it is sufficient. Use a dedicated `CAMetalLayer` (or `MTKView`) for the audience composition root when high-layer-count output, advanced blending, alpha/key output, EDR/HDR, or capture export is required.
+- Use Core Text / AttributedString / TextKit-backed layout in the adapter for `TextSceneNode` rendering, with measured layout cached by scene/resource stamp.
 - Use `CAShapeLayer`, Core Graphics, or Metal path rendering for shape and vector nodes based on complexity and performance.
-- Use `AVPlayerLayer`, decoded sample buffers, or Metal texture paths for media nodes depending on whether the renderer needs effects, alpha, synchronization, or capture output.
+- Use `AVPlayerLayer`, decoded sample buffers (`AVSampleBufferDisplayLayer`), or Metal texture paths for media nodes depending on whether the renderer needs effects, alpha, synchronization, or capture output.
+- Apply the Mask layer as a `CALayer.mask` constraint on the per-screen composition root (or as an alpha `CAShapeLayer`/`CIFilter`-driven mask), not as a separate top-of-stack visual.
 - Use `AVCaptureVideoPreviewLayer` or sample-buffer/Metal paths for live video nodes depending on the cue and capture requirements.
+
+Per-slot transitions:
+
+- Maintain a hidden back `CALayer`/`MTLTexture` per slot, pre-allocated on `EnsureSurfaces`.
+- Crossfades and dissolves run via `CAAnimation` on the slot's child layers; replacement swaps front/back roles atomically once the new payload's first frame is ready.
+- Frame applies always run on the main thread (`MainActor` / `DispatchQueue.main`); the command bus thread only enqueues diff descriptors.
 
 Adapter restrictions:
 
@@ -214,12 +238,13 @@ Adapter restrictions:
 - Do not interpret slide actions, macro actions, Looks, or clear groups.
 - Do not flatten unsupported imported effects silently. Preserve diagnostics tied to the scene node and source reference.
 - Do not use a screenshot of the output window as the primary capture pipeline when the runtime can provide resolved frames or renderer-owned textures.
+- Do not reorder, hide, or substitute layer slots based on host opinion.
 
 Frame pacing and performance:
 
-- Use display-linked rendering tied to the output screen where possible.
+- Use display-linked rendering tied to the output screen where possible (`CADisplayLink`-equivalent via `CVDisplayLink` or `CAMetalLayer` presentation).
 - Keep drawable sizes aligned to backing size for text and UI clarity; allow lower internal render targets only when quality policy permits.
-- Track render timings per scene, frame, layer, and endpoint.
+- Track per-action `prepareTimeMs`, `routeTimeMs`, `composeTimeMs`, `applyTimeMs`, `mediaReadyTimeMs`, and `loopGapMs`.
 - Include display scale, color space, EDR/HDR settings, frame rate, dropped frames, and renderer backend in diagnostics.
 
 ## Stage, Preview, Thumbnail, and Editor Rendering
@@ -229,11 +254,25 @@ Stage outputs are not audience outputs with a different theme. They consume `Sta
 Implementation guidance:
 
 - Build a `StageRendererAdapter` that consumes stage layout elements, provider snapshots, current/next context, timers, clocks, media countdown, stage messages, capture status, and preview references.
-- Build operator previews as subscribers to resolved audience/stage frames.
+- Build operator previews as subscribers to resolved audience/stage frames. A preview is not a second playback engine; it should render the same logical screen/layer payloads, transport state, clear state, and timing as the output it previews, with differences limited to scale, chrome, diagnostic overlays, muted monitoring policy, and interaction affordances. The shared `SlideSceneFitter` scales presentation-sized scenes into each screen's topology `RenderSize` before the host rasterizes so typography stays sharp on Retina outputs; the macOS preview may raster at the card's layout pixels (same frame apply and player bindings as the canonical screen render) rather than downscaling the full monitor-resolution surface.
 - Build thumbnails as scene/frame consumers with thumbnail render intent; do not autoplay video or audio in thumbnails.
 - Build editor canvases from the same scene model plus editor-only adorners: selection boxes, resize handles, guides, rulers, validation overlays, snapping, and drag/drop targets.
 - Keep editor adorners out of serialized content and output frames.
 - Use cache keys that include content stamps, resource stamps, theme stamps, token/provider stamps, render intent, display scale, and renderer schema version.
+
+### Media Drawer and Thumbnail Strategy
+
+The macOS media drawer should follow the same shared invariant as Windows: cards appear from runtime media read models before thumbnails complete. A `MediaCueCardModel` or equivalent `Identifiable` row should be created from asset/cue metadata, availability, and fallback media-kind artwork immediately. Thumbnail generation, duration discovery, playback readiness, and health diagnostics update properties on that stable row as background work completes. Drawer open/close changes UI subscription and priority only; it must not be the owner of media discovery, prepared-cue warmup, retained player handles, or cache lifetime.
+
+Use platform thumbnail APIs as bounded accelerators:
+
+- Use the shared/runtime thumbnail cache first, keyed by resource stamp, requested thumbnail intent/size, display scale, and provider version.
+- For general files, use QuickLookThumbnailing's `QLThumbnailGenerator` for asynchronous thumbnail representations. `generateRepresentations(for:update:)` is a good fit for progressive UI because it can provide lower-quality results before the best representation arrives.
+- For video files that need deterministic poster extraction, use `AVAssetImageGenerator` asynchronously. Set `maximumSize` to the card's scaled target size so poster generation does not decode full-resolution frames for drawer thumbnails. Use relaxed time tolerances for speed unless a cue specifically requires frame accuracy.
+- Do not run many equivalent Quick Look/provider retries on the drawer hot path. If Quick Look misses quickly for a video, move to `AVAssetImageGenerator` first-frame extraction; if that fails, keep fallback card artwork and diagnostics visible.
+- Cache recent provider failures briefly so repeated SwiftUI refreshes do not re-trigger the same expensive miss until the resource stamp changes.
+
+Startup media warmup should run during bootstrap through runtime/application services. The macOS host can prepare `AVAsset`/`AVPlayerItem` objects, thumbnail requests, and retained media slot resources in background actors within the cache budget. Visible drawer cells may raise priority, but closing the drawer should not release hot player items or invalidate thumbnails that the runtime still considers likely to be used.
 
 ## Media Playback Adapter
 
@@ -244,13 +283,16 @@ Adapter responsibilities:
 - Load assets and player items from runtime-resolved URLs or provider references.
 - Observe `AVPlayerItem.status`, `AVPlayer.timeControlStatus`, rate changes, failures, buffering, duration, current time, and end-of-item events.
 - Implement cue-specific policy: in/out, delay, rate, loop, retrigger, stop behavior, poster frame, scaling/crop, duration, transitions, and playback markers.
+- Project separate runtime transport lanes for presentation/media, audio, and announcements. The macOS Show controls should display and command only the selected lane snapshot; announcement and audio playback must not overwrite presentation media state.
 - Raise marker events into the shared command executor.
 - Report player identity, owning layer/cue/action, readiness, current time, marker state, loop state, dropped/stalled playback, and errors to runtime diagnostics.
 - Keep `MediaAsset` identity separate from `MediaCue` usage. The same `AVAsset` may feed multiple cues with different policy.
 
-Use `AVPlayer` for normal single-item playback, `AVQueuePlayer` or `AVPlayerLooper` where cue policy requires queueing or looping, and lower-level sample-buffer or Metal texture paths when the renderer needs custom effects, alpha, synchronized capture, or multi-output composition.
+Use `AVPlayer` for normal single-item playback. Apple documents `AVPlayerLayer` as the layer that presents the visual contents of an `AVPlayer`; output and preview layers should therefore attach to the runtime-owned player identity or to renderer-owned sample buffers/textures derived from it. They must not allocate separate `AVPlayer` instances for the same live audience layer unless the runtime intentionally models multiple independent endpoints. For looping cues, use `AVQueuePlayer` paired with `AVPlayerLooper` over a template `AVPlayerItem`; the looper produces gapless playback without seek-to-zero and reuses the decoded pipeline across loop boundaries. Use lower-level sample-buffer or Metal texture paths when the renderer needs custom effects, alpha, synchronized capture, or multi-output composition.
 
-The adapter must not publish empty active media-player sets or clear playback locally. Clear and recovery actions are runtime commands.
+First-frame visibility is gated on `AVPlayerItem.status == .readyToPlay`, `isPlaybackLikelyToKeepUp == true`, and for visual `AVPlayerLayer` paths, `isReadyForDisplay == true` before the host swaps the front/back slot surfaces. Until then, the prior payload remains visible.
+
+The adapter must not publish empty active media-player sets or clear playback locally. Clear and recovery actions are runtime commands. When a `ContentInvalidated`/`MediaAssetChanged` event triggers cue re-preparation, the adapter prepares the new `AVPlayerItem` off the main actor and swaps it in via the runtime's `ReplaceLayerPayload` action.
 
 ## Audio Routing Adapter
 
@@ -431,38 +473,11 @@ Distribution tests:
 - clean-machine Gatekeeper launch,
 - upgrade preserving app container, machine bindings, bookmarks, and caches.
 
-## Migration Path
-
-The macOS app should be built in phases that match the shared architecture migration direction:
-
-1. Define Swift models/protocols that mirror the shared command, query, scene, frame, diagnostic, and machine-binding contracts.
-2. Build the SwiftUI/AppKit shell with read-only query projections and no independent live-state semantics.
-3. Implement content root selection, bookmark persistence, cache locations, and diagnostics before media-heavy workflows depend on them.
-4. Implement Show workflow command dispatch and resolved-frame previews.
-5. Add output window controllers for local display endpoints.
-6. Add AVFoundation media playback and live-video adapters with host feedback.
-7. Add Core Animation/Metal renderer paths for output, thumbnails, previews, and editor surfaces.
-8. Add Output Setup for logical screens, endpoints, Looks, stage layouts, clear groups, capture, and transport bindings.
-9. Add capture/record/stream consumers from resolved frames.
-10. Add advanced parity features: Syphon-like output, NDI/SDI adapters, alpha key/fill, richer text/effects, masks, dynamic providers, remotes, and device protocols.
-
-At each phase, delete temporary host-specific render or live-state logic instead of layering compatibility around unshipped macOS behavior.
-
-## Open Design Questions
-
-These should be resolved against the shared architecture before implementation locks them in:
-
-- Whether the macOS app shares a compiled runtime core with Windows or reimplements the shared contracts in Swift with schema and behavior conformance tests.
-- Which renderer backend is the first production path: Core Animation-first with Metal escape hatches, or Metal-first with Core Animation/AppKit hosting for controls.
-- How much direct distribution support is required before Mac App Store constraints are known, especially for sandboxing, network/server control surfaces, plugins, and professional video transports.
-- Which macOS versions are supported at launch, because ScreenCaptureKit, Swift Observation, SwiftUI window APIs, and newer display/HDR capabilities vary by macOS release.
-- Which third-party transport SDKs are in scope for initial macOS parity: Syphon, NDI, Blackmagic/SDI, Resi-like streaming, Stream Deck, MIDI, and DMX.
-
 ## Apple Documentation Topics Consulted
 
 Sosumi was used to inspect current Apple documentation for these implementation areas:
 
-- SwiftUI scenes, `WindowGroup`, menu commands, focused values, AppKit integration, and Observation.
+- SwiftUI scenes, `WindowGroup`, menu commands, focused values, AppKit integration, model-data separation, and Observation.
 - AppKit `NSScreen`, fullscreen/presentation options, output window behavior, and AppKit accessibility.
 - AVFoundation player transport, capture setup, screen input deprecation guidance, camera/microphone authorization, and live capture concepts.
 - ScreenCaptureKit shareable content, streams, recording outputs, screenshots, picker, HDR/dynamic range, and stream error categories.

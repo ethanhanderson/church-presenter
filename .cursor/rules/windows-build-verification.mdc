@@ -1,75 +1,139 @@
 ---
-description: Keep Windows/.NET app changes buildable without forcing unnecessary WinUI CLI rebuilds.
+description: ChurchPresenter packaged build/launch workflow (winapp CLI scripts). WinApp MCP only for crash repro, functional testing, or tasks that require driving the app — not routine UI/design work unless the user asks. While iterating, stop and relaunch when runtime verification is needed (rebuild when needed). Replaces Visual Studio F5 and dotnet run for verification.
 alwaysApply: false
 ---
-# Windows Build Verification
+# ChurchPresenter Packaged Verification (only workflow)
 
-Applies when editing the **WinUI 3** app and its **Application** / **Core** libraries under `apps/windows/`, ChurchPresenter test or benchmark projects under `tests/`, or shared root build configuration that can affect those projects.
+**Skill (read first):** `.cursor/skills/winapp-mcp-winui/SKILL.md`  
+**Scripts:** `scripts/windows/Invoke-AgentE2EVerification.ps1`
 
-Use judgment for shared files such as `Directory.Build.props`, `global.json`, or `.editorconfig`: follow this rule when the change affects .NET SDK selection, MSBuild properties, analyzers, formatting, packages, target frameworks, platforms, or generated outputs for the Windows projects. Do not run Windows verification for unrelated edits that merely happen to touch a broadly scoped file.
+There is **no alternate** agent verification path for the packaged WinUI app. Do not use Visual Studio F5, `dotnet run`, raw `.exe` launch, or WinApp MCP `launch_app` on `ChurchPresenter.exe`.
 
-Keep WinUI and app-level test changes in a **buildable** state. Microsoft Learn documents that `dotnet build` builds a project and dependencies with MSBuild, uses implicit restore, and supports incremental builds; use it as the normal compile gate after substantive changes.
+## When this rule applies
 
-## When to build
+**Packaged build** (and often launch) when **any** of these is true:
 
-Skip the CLI app build only when changes are **small and non-functional**, for example:
+1. **Big refactor** under `apps/windows/**` (output engine, pipeline, routing, packaging, startup, shell navigation)
+2. **New feature** or behavior change that needs compile or runtime verification
+3. **User asks** to test, verify, run, or check the app
+4. **Substantive WinUI/host change** you are about to mark complete
 
-- Comment-only, documentation-only, or whitespace-only edits that cannot affect compilation.
-- Purely cosmetic XAML or copy where the expected validation path is **XAML Hot Reload** or **.NET Hot Reload** in Visual Studio (debugger attached), not a clean CLI compile.
+**Skip** for comment-only, docs-only, or isolated Core/Application edits with no WinUI impact (unit tests may suffice).
 
-Run the app build after **substantive** edits: project/manifest/packages, C# behavior, resources that participate in the build, packaging, activation, or anything that could change binaries:
+## When to use WinApp MCP (task-by-task — not automatic)
 
-`dotnet build apps/windows/ChurchPresenter/ChurchPresenter.csproj -c Debug -p:Platform=x64`
+Use WinApp MCP **only** when the **current task** needs the agent to interact with a running app:
 
-If the build fails because app outputs are locked, stop the running app process safely and retry once before giving up.
+| Use MCP | Usually skip MCP |
+|---------|------------------|
+| Reproducing or diagnosing a **crash** / fail-fast | **UI redesign** — layout, styling, spacing, visuals (user reviews in the app) |
+| **Functional** testing — flows, commands, playback, routing, dialogs that must work | Static XAML/structure changes that only need a **build** |
+| Driving multi-step operator flows the agent must execute | Cosmetic polish unless the user asks to verify via MCP |
+| User explicitly asks to test, automate, or check UI in-app | "Make it look like …" / design iteration |
 
-## Safely stop the running app before building
+**Default for UI/design work:** build (and relaunch only if you need runtime confirmation). Attach MCP **only if the user asks** or the task is functional, not visual.
 
-Use PowerShell process cmdlets against the **ChurchPresenter app process only**. Do not start with `taskkill /F`, do not stop broad names like `dotnet`, `msbuild`, `devenv`, or `pwsh`, and do not use `Stop-Process -Force` unless the user explicitly approves it.
+Judge **per task**, not once per session. A later task in the same chat may need MCP even if an earlier styling task did not.
 
-Prefer an orderly UI shutdown first. `Get-Process` returns `System.Diagnostics.Process` objects; `CloseMainWindow()` sends the same kind of close request as the user closing the window and does not force quit. Then wait for exit. If it remains running, use `Stop-Process` for those same process IDs and `Wait-Process` before rebuilding.
+## Iteration loop (required while changing the app)
+
+While you are **actively iterating** on ChurchPresenter, keep the binary in sync with your edits. A running instance from an earlier build is not valid for verification or MCP.
+
+| Step | Required? | Notes |
+|------|-----------|-------|
+| Stop running app | Before **build** or **relaunch** | `Stop-ChurchPresenter.ps1` — unlocks `AppX` |
+| Packaged rebuild | **When needed** | Skip only if a **successful** packaged build ran **after your latest edits** |
+| Relaunch (`winapp run`) | When verifying **runtime behavior**, **before MCP**, debugging crashes, or user asks to run the app | Optional for pure UI/styling if the user will review visually — still **required** before any MCP attach |
+| WinApp MCP | **Only when task requires it** (see table above) | Fresh `last-run.json` PID; never attach to a stale process |
+
+Fast iteration (relaunch only, build already current):
 
 ```powershell
-$app = Get-Process -Name ChurchPresenter -ErrorAction SilentlyContinue
-if ($app) {
-    $app | Select-Object Id, ProcessName, MainWindowTitle, Path
-    foreach ($process in $app) {
-        if ($process.MainWindowHandle -ne 0) { [void]$process.CloseMainWindow() }
-    }
-    $app | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
-    $remaining = Get-Process -Name ChurchPresenter -ErrorAction SilentlyContinue |
-        Where-Object { $app.Id -contains $_.Id }
-    if ($remaining) {
-        $remaining | Stop-Process
-        $remaining | Wait-Process -Timeout 10
-    }
-}
+pwsh -File scripts/windows/Invoke-AgentE2EVerification.ps1 -SkipTests -SkipBuild
 ```
 
-If more than one matching process is ambiguous, or the process appears to be owned by a Visual Studio F5 session with unsaved state/dialogs, stop and ask the user to close or stop debugging in Visual Studio.
+Full iteration (rebuild + relaunch):
 
-## Safer automated checks (usually not blocked by a running WinUI app)
+```powershell
+pwsh -File scripts/windows/Invoke-AgentE2EVerification.ps1 -SkipTests
+```
 
-These test projects reference **Core** / **Application** only—not the packaged WinUI app output—so `dotnet test` here typically **does not** build `ChurchPresenter.csproj` and is less likely to collide with a locked WinUI output:
+Equivalent step-by-step:
 
-- `dotnet test tests/ChurchPresenter.Core.Tests/ChurchPresenter.Core.Tests.csproj` — shared `.cpres` I/O and core logic.
-- `dotnet test tests/ChurchPresenter.App.Tests/ChurchPresenter.App.Tests.csproj` — app services, activation, settings, live session behavior covered by those tests.
-- If you touch another `tests/ChurchPresenter*/` project, run the narrowest relevant `dotnet test`, `dotnet build`, or benchmark command for that project.
+```powershell
+pwsh -File scripts/windows/Stop-ChurchPresenter.ps1
+pwsh -File scripts/windows/Build-PackagedApp.ps1 -SkipStop   # omit if already built since your last edit
+pwsh -File scripts/windows/Run-PackagedApp.ps1 -Mode Detach  # or -Mode DebugOutput
+```
 
-## Run after build
+**Do not:** attach WinApp MCP to an old PID, leave a pre-change instance running while editing, or treat "app still open" as proof the new code is loaded.
 
-After the app build succeeds, launch the app in **Debug configuration** from the CLI when it is practical:
+## Required steps
 
-`dotnet run --project apps/windows/ChurchPresenter/ChurchPresenter.csproj --configuration Debug -p:Platform=x64`
+### 1. Orchestrate
 
-`dotnet run` depends on `dotnet build`, runs from source, and supports `--project` and `--configuration`. If WinUI packaging/debugger activation makes CLI launch unreliable, do **not** fight it with ad hoc commands; report that the build passed and ask the user to start debugging in Visual Studio. Only use PowerShell `Debug-Process` when the user explicitly asks to attach a registered debugger.
+```powershell
+pwsh -File scripts/windows/Invoke-AgentE2EVerification.ps1 -InstallWinAppCli
+```
 
-## Fix errors and warnings from your changes
+Or: `Stop-ChurchPresenter.ps1` → relevant `dotnet test` → `Build-PackagedApp.ps1` → `Run-PackagedApp.ps1 -Mode Detach`.
 
-Whenever you run **`dotnet build`** or **`dotnet test`** (or Visual Studio **Build**) for work touched in the **current chat**, treat the output as blocking until it is clean **for that scope**:
+Install winapp CLI once: `winget install Microsoft.winappcli`.
 
-- **Resolve every build error** and **test failure** that appears in projects or files you modified or that are clearly caused by those edits (including cascading failures).
-- **Resolve compiler/analyzer warnings** reported for the same changed code paths—nullable reference types, unused usings, XAML or WinUI analyzer messages, obsolete APIs, and similar—unless the project already suppresses them globally and your change did not add new ones.
-- Do **not** leave “fix later” failures from this session’s edits. If something is pre-existing and unrelated, you may note it; still fix anything your changes surfaced or worsened.
+### 2. WinApp MCP (when the task needs it)
 
-Iterate: edit → build or test again → repeat until the relevant command succeeds without new issues attributable to your work.
+Skip this step for routine UI/design work unless the user asks or the task is functional.
+
+When MCP **is** needed: relaunch first, then read `.agent-logs/last-run.json` → `mcpAttachArgs.pid` → `CallMcpTool` server **`project-0-church-presenter-winapp`** → `attach_to_pid` with `{"pid": ...}`. Scenarios: `.cursor/skills/winapp-mcp-winui/references/churchpresenter-ui-flows.md`
+
+### 3. Logs (default path) and crash stacks (symbols)
+
+Prefer the debug-output path for almost every run so logged errors surface and get fixed:
+
+```powershell
+pwsh -File scripts/windows/Run-PackagedApp.ps1 -Mode DebugOutput
+```
+
+Read `.agent-logs/debug-output-*.log`. The WinApp MCP is a UIA client (not a debugger), so you **can** attach MCP to the launched PID and drive the UI to reproduce while `--debug-output` records the log; just don't attach a second real debugger (Visual Studio) at the same time.
+
+For a crash — especially a native fail-fast (exit code `3221226107` / `0xC000027B`) that bypasses managed handlers — **always** add `-Symbols` for resolved native frames + a `.dmp`:
+
+```powershell
+pwsh -File scripts/windows/Run-PackagedApp.ps1 -Mode DebugOutput -Symbols
+```
+
+## Build gate (all WinUI edits)
+
+Keep changes buildable:
+
+```powershell
+dotnet build apps/windows/ChurchPresenter/ChurchPresenter.csproj -c Debug -p:Platform=x64
+```
+
+Before packaged build: `pwsh -File scripts/windows/Stop-ChurchPresenter.ps1` (running app locks `bin/.../AppX`).
+
+If MSB3026/3027/3021 and only Visual Studio locks after app is closed → ask user to stop debugging; never kill `devenv`.
+
+### Tests without WinUI package (can run while app is open)
+
+- `dotnet test tests/ChurchPresenter.Core.Tests/ChurchPresenter.Core.Tests.csproj`
+- `dotnet test tests/ChurchPresenter.App.Tests/ChurchPresenter.App.Tests.csproj`
+
+Passing these does **not** replace a packaged build for WinUI changes. Launch and MCP are additional gates only when runtime or in-app verification is required for the task.
+
+## Forbidden
+
+| Do not use | Why |
+|------------|-----|
+| `dotnet run --project .../ChurchPresenter.csproj` | `REGDB_E_CLASSNOTREG` without full MSIX deploy; use `winapp run` + built manifest |
+| `launch_app(ChurchPresenter.exe)` | No package identity |
+| Visual Studio F5 / Debug Installed Package | Not the agent workflow |
+| Kill VS/dotnet/msbuild for AppX locks | Stop `ChurchPresenter` only |
+
+## Troubleshooting
+
+`.cursor/skills/winapp-mcp-winui/references/troubleshooting.md`
+
+## Completion bar
+
+Do not claim Windows work is done until: build passes; and for tasks that need runtime verification — app launches via `winapp run` and behavior is confirmed (MCP, logs, or user review as appropriate). Failures need `DebugOutput` logs and/or MCP screenshots when MCP was used.

@@ -9,7 +9,6 @@ This reference summarizes official Renewed Vision / ProPresenter support materia
 - [Layers and looks](layers-and-looks.md) - fixed output stack, layer visibility, alternate themes, clear behavior, and background/media interaction.
 - [Stage, announcements, and generated content](stage-announcements-generated-content.md) - stage displays, announcement layer, messages, props, masks, and show controls.
 - [Output types and signal routing](output-types-and-signal-routing.md) - system displays, NDI, SDI/Blackmagic, Syphon, placeholders, alpha/key output, audio, grouped/mirrored/edge-blended screens.
-- [ChurchPresenter design notes](churchpresenter-design-notes.md) - implications for our app architecture.
 - [Sources](sources.md) - official Renewed Vision links, coverage notes, and source limitations for the wider ProPresenter reference set.
 
 ## Related Reference Areas
@@ -18,7 +17,6 @@ This reference summarizes official Renewed Vision / ProPresenter support materia
 - [Media and audio management](../media-management/media-audio-assets.md) - the asset, cue, live video, and audio systems that feed output layers.
 - [Library and show management](../library-show-management/libraries-playlists-integrations.md) - playlists, presentations, arrangements, themes, integrations, sync, and packages.
 - [Operator workflows and automation](../operator-workflows/show-controls-and-recovery.md) - clear groups, timers, messages, props, macros, slide actions, remotes, capture, and live recovery.
-- [ChurchPresenter architecture](../../../architecture/target-architecture.md) - intended app architecture for commands, outputs, portability, and recovery.
 
 ## High-Level Summary
 

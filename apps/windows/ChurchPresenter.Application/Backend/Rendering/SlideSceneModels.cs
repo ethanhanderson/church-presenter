@@ -198,11 +198,29 @@ public sealed record SceneBackground
     /// <summary>Fit/crop/stretch policy.</summary>
     public string? Fit { get; init; }
 
+    /// <summary>Gradient angle in degrees, when the background is a gradient.</summary>
+    public double? GradientAngle { get; init; }
+
+    /// <summary>Gradient color stops in percentage positions, when the background is a gradient.</summary>
+    public IReadOnlyList<SceneGradientStop> GradientStops { get; init; } = Array.Empty<SceneGradientStop>();
+
     /// <summary>Background opacity.</summary>
     public double Opacity { get; init; } = 1;
 
     /// <summary>Frame alpha mode implied by the background.</summary>
     public RenderAlphaMode AlphaMode { get; init; } = RenderAlphaMode.Opaque;
+}
+
+/// <summary>
+/// Host-neutral gradient stop descriptor for scene backgrounds.
+/// </summary>
+public sealed record SceneGradientStop
+{
+    /// <summary>Stop color.</summary>
+    public string Color { get; init; } = "#000000";
+
+    /// <summary>Stop position from 0 to 100.</summary>
+    public double Position { get; init; }
 }
 
 /// <summary>
@@ -617,6 +635,29 @@ public sealed record OverlayRenderPayload : RenderPayloadDetail
 
     /// <summary>Optional scene snapshot for scene-based overlays.</summary>
     public SlideScene? Scene { get; init; }
+}
+
+/// <summary>
+/// Mask layer payload detail. The mask is either vector geometry compiled to a
+/// <see cref="Scene"/> or an alpha image referenced by <see cref="SourcePath"/>; the host
+/// composites it as a <c>CompositionMaskBrush</c> constraining the layers below it.
+/// </summary>
+public sealed record MaskRenderPayload : RenderPayloadDetail
+{
+    /// <summary>Mask asset id.</summary>
+    public string MaskId { get; init; } = string.Empty;
+
+    /// <summary>Mask source kind: "vector" or "image".</summary>
+    public string MaskKind { get; init; } = "vector";
+
+    /// <summary>Resolved alpha image source path, when <see cref="MaskKind"/> is "image".</summary>
+    public string? SourcePath { get; init; }
+
+    /// <summary>Compiled vector mask scene, when <see cref="MaskKind"/> is "vector".</summary>
+    public SlideScene? Scene { get; init; }
+
+    /// <summary>Whether the mask alpha is inverted (hide inside the shape instead of outside).</summary>
+    public bool Invert { get; init; }
 }
 
 /// <summary>

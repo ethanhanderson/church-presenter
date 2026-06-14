@@ -1,43 +1,59 @@
 using System;
 using System.Collections.Generic;
 
+using ChurchPresenter.Adapters.Rendering.Pipeline;
 using ChurchPresenter.Hosting;
 using ChurchPresenter.Interop;
 
-using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace ChurchPresenter;
 
 public sealed partial class MainWindow : Window
 {
+    /// <summary>App-lifetime canonical render anchor (for compositor resolution from preview mirrors).</summary>
+    internal Panel RenderAnchorPanel => ProgramRenderAnchor;
+
     private readonly ShowViewModel _show;
-    private readonly IAudienceWindowService _audienceWindows;
-    private readonly IStageWindowService _stageWindows;
-    private bool _isNavigatingContentFrame;
+    private readonly INavigationService _navigation;
+    private readonly IShellNavigationCoordinator _shellNav;
     private bool _audienceTitleToggleSync;
     private bool _stageTitleToggleSync;
-    private bool _selectorBarSelectionSync;
-    private string _currentNavTag = AppNavigationRoute.Show.Tag;
+    private bool _mediaPanelToggleSync;
     private readonly List<Frame> _frameNavSubscribed = new();
     private readonly DispatcherQueueTimer _frameAttachDebounceTimer;
 
+    /// <summary>Current top-level page in the content frame for diagnostics.</summary>
+    internal string? CurrentContentPageTypeName => _navigation.CurrentPage?.GetType().Name;
+
     public MainWindow(
         ShowViewModel show,
-        IAudienceWindowService audienceWindows,
-        IStageWindowService stageWindows)
+        INavigationService navigation,
+        IShellNavigationCoordinator shellNavigation,
+        IProgramRenderService renderService,
+        OperatorPreviewSession operatorPreviewSession)
     {
         InitializeComponent();
 
         _show = show ?? throw new ArgumentNullException(nameof(show));
-        _audienceWindows = audienceWindows ?? throw new ArgumentNullException(nameof(audienceWindows));
-        _stageWindows = stageWindows ?? throw new ArgumentNullException(nameof(stageWindows));
+        _navigation = navigation ?? throw new ArgumentNullException(nameof(navigation));
+        _shellNav = shellNavigation ?? throw new ArgumentNullException(nameof(shellNavigation));
+        ArgumentNullException.ThrowIfNull(renderService);
+        ArgumentNullException.ThrowIfNull(operatorPreviewSession);
+        ContentFrame.CacheSize = 8;
+        _navigation.Initialize(ContentFrame);
+
+        // Bind the app-lifetime render service to the always-composing shell anchor. Every logical output
+        // screen's single canonical render lives here (never on a page); pages only host passive surface
+        // mirrors of it.
+        renderService.Initialize(ProgramRenderAnchor);
+        operatorPreviewSession.InitializeOverlay(OperatorPreviewOverlayHost);
+
+        _navigation.Navigated += NavigationService_Navigated;
         _show.PropertyChanged += ShowViewModel_PropertyChanged;
 
         if (AppWindowTitleBar.IsCustomizationSupported())
@@ -59,6 +75,7 @@ public sealed partial class MainWindow : Window
 
         Closed += MainWindow_Closed;
         ContentFrame.Navigated += ContentFrame_Navigated;
+        ContentFrame.NavigationFailed += ContentFrame_NavigationFailed;
         ContentFrame.LayoutUpdated += ContentFrame_LayoutUpdated;
 
         var dq = DispatcherQueue.GetForCurrentThread()
@@ -72,7 +89,10 @@ public sealed partial class MainWindow : Window
             UpdateTitleBarBackButton();
         };
 
-        SyncAppPageSelectorBarSelection();
+        _shellNav.AttachSelectorBar(AppPageSelectorBar);
+        _shellNav.SyncSelectorBar();
+        SyncAudienceTitleToggle();
+        SyncStageTitleToggle();
         UpdatePresentationWorkspaceSelectorItems();
     }
 
@@ -80,15 +100,32 @@ public sealed partial class MainWindow : Window
     {
         App.MainWindow = null;
         _show.PropertyChanged -= ShowViewModel_PropertyChanged;
+        _navigation.Navigated -= NavigationService_Navigated;
         ContentFrame.LayoutUpdated -= ContentFrame_LayoutUpdated;
         _frameAttachDebounceTimer.Stop();
         DetachFrameNavigatedHandlers();
     }
 
+    private void ContentFrame_NavigationFailed(object sender, NavigationFailedEventArgs e)
+    {
+        e.Handled = true;
+    }
+
     private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
     {
+        // Frame-specific wiring (nested-frame back handlers, back button). Chrome updates also run from
+        // NavigationService_Navigated for pages that complete navigation through the service.
         AttachFrameNavigatedHandlers();
         ScheduleFrameAttachDebounced();
+    }
+
+    private void NavigationService_Navigated(object? sender, EventArgs e)
+    {
+        ApplyPostNavigationChromeUpdate();
+    }
+
+    private void ApplyPostNavigationChromeUpdate()
+    {
         _show.NotifyAudienceOutputChanged();
         _show.NotifyStageOutputChanged();
         SyncAudienceTitleToggle();
@@ -115,7 +152,7 @@ public sealed partial class MainWindow : Window
     private void AttachFrameNavigatedHandlers()
     {
         DetachFrameNavigatedHandlers();
-        foreach (var frame in NavigationFrameBackHelper.EnumerateAllFrames(ContentFrame))
+        foreach (var frame in ShellNavigation.FrameBack.EnumerateAllFrames(ContentFrame))
         {
             frame.Navigated += FrameNavigatedHandler;
             _frameNavSubscribed.Add(frame);
@@ -130,10 +167,10 @@ public sealed partial class MainWindow : Window
     }
 
     private void UpdateTitleBarBackButton() =>
-        AppTitleBar.IsBackButtonEnabled = NavigationFrameBackHelper.HasAnyFrameCanGoBack(ContentFrame);
+        AppTitleBar.IsBackButtonEnabled = ShellNavigation.FrameBack.HasAnyFrameCanGoBack(ContentFrame);
 
     private void AppTitleBar_BackRequested(TitleBar sender, object args) =>
-        NavigationFrameBackHelper.TryGoBackDeepest(ContentFrame);
+        ShellNavigation.FrameBack.TryGoBackDeepest(ContentFrame);
 
     private async void ShowViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
@@ -146,7 +183,7 @@ public sealed partial class MainWindow : Window
         else if (e.PropertyName == nameof(ShowViewModel.CanUsePresentationWorkspace))
         {
             UpdatePresentationWorkspaceSelectorItems();
-            await LeavePresentationWorkspaceIfUnavailableAsync();
+            await _shellNav.LeavePresentationWorkspaceIfUnavailableAsync();
         }
     }
 
@@ -181,10 +218,11 @@ public sealed partial class MainWindow : Window
     {
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         NativeWindowInterop.SetForegroundWindow(hwnd);
-        ContentFrame.Focus(FocusState.Programmatic);
 
-        if (ContentFrame.Content is ShowPage showPage)
+        if (_navigation.CurrentPage is ShowPage showPage)
             showPage.RestoreKeyboardFocus();
+        else
+            ContentFrame.Focus(FocusState.Programmatic);
     }
 
     private async void AudienceTitleToggle_Toggled(object sender, RoutedEventArgs e)
@@ -193,11 +231,6 @@ public sealed partial class MainWindow : Window
             return;
         if (sender is ToggleSwitch sw)
         {
-            if (sw.IsOn)
-                _audienceWindows.Open();
-            else
-                _audienceWindows.CloseAll();
-
             await _show.SetAudienceEnabledAsync(sw.IsOn);
             RestoreForegroundFocus();
         }
@@ -218,10 +251,10 @@ public sealed partial class MainWindow : Window
 
     private void SearchTitleButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!string.Equals(_currentNavTag, AppNavigationRoute.Show.Tag, StringComparison.Ordinal))
-            NavigateToTag(AppNavigationRoute.Show.Tag);
+        if (!_shellNav.IsOnShow)
+            _shellNav.TryNavigateTo(ShellNavigation.Route.Show.Tag);
 
-        if (ContentFrame.Content is ShowPage showPage)
+        if (_navigation.CurrentPage is ShowPage showPage)
             showPage.FocusSourcesSearch();
     }
 
@@ -231,135 +264,44 @@ public sealed partial class MainWindow : Window
             return;
         if (sender is ToggleSwitch sw)
         {
-            if (sw.IsOn)
-                _stageWindows.Open();
-            else
-                _stageWindows.CloseAll();
-
             await _show.SetStageEnabledAsync(sw.IsOn);
             RestoreForegroundFocus();
         }
     }
 
-    public void NavigateToShowPage()
-    {
-        NavigateToTag(AppNavigationRoute.Show.Tag);
-    }
+    public void NavigateToShowPage() =>
+        _shellNav.TryNavigateTo(ShellNavigation.Route.Show.Tag);
 
     public void NavigateToEditorPage()
     {
-        if (!CanNavigateToPresentationWorkspace(AppNavigationRoute.Editor.Tag))
+        if (!_shellNav.CanNavigateToPresentationWorkspace(ShellNavigation.Route.Editor.Tag))
             return;
 
-        NavigateToTag(AppNavigationRoute.Editor.Tag);
+        _shellNav.TryNavigateTo(ShellNavigation.Route.Editor.Tag);
     }
 
     public void NavigateToReflowPage()
     {
-        if (!CanNavigateToPresentationWorkspace(AppNavigationRoute.Reflow.Tag))
+        if (!_shellNav.CanNavigateToPresentationWorkspace(ShellNavigation.Route.Reflow.Tag))
             return;
 
-        NavigateToTag(AppNavigationRoute.Reflow.Tag);
+        _shellNav.TryNavigateTo(ShellNavigation.Route.Reflow.Tag);
     }
 
-    public void NavigateToThemeLibraryPage()
-    {
-        NavigateToTag(AppNavigationRoute.ThemeLibrary.Tag);
-    }
+    public void NavigateToThemeLibraryPage() =>
+        _shellNav.TryNavigateTo(ShellNavigation.Route.ThemeLibrary.Tag);
 
     private async void AppPageSelectorBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {
-        if (_selectorBarSelectionSync)
+        if (!await _shellNav.HandleSelectorBarSelectionChangedAsync(sender))
             return;
 
-        if (sender.SelectedItem is not FrameworkElement { Tag: string tag })
-            return;
-
-        if (!await CanNavigateToTagAsync(tag))
-        {
-            SyncAppPageSelectorBarSelection();
-            return;
-        }
-
-        NavigateToTag(tag);
-    }
-
-    private async Task<bool> CanNavigateToTagAsync(string targetTag)
-    {
-        if (string.Equals(targetTag, _currentNavTag, StringComparison.Ordinal))
-            return false;
-
-        if (!CanNavigateToPresentationWorkspace(targetTag))
-            return false;
-
-        if (string.Equals(_currentNavTag, AppNavigationRoute.Editor.Tag, StringComparison.Ordinal)
-            && ContentFrame.Content is EditPage editPage)
-            return await editPage.ViewModel.ConfirmNavigateAwayAsync();
-
-        return true;
-    }
-
-    private void NavigateToPage(Type pageType, NavigationTransitionInfo? transition)
-    {
-        if (_isNavigatingContentFrame || ContentFrame.CurrentSourcePageType == pageType)
-            return;
-
-        var navOptions = new FrameNavigationOptions
-        {
-            TransitionInfoOverride = transition ?? new EntranceNavigationTransitionInfo(),
-            IsNavigationStackEnabled = false,
-        };
-
-        try
-        {
-            _isNavigatingContentFrame = true;
-            ContentFrame.NavigateToType(pageType, null, navOptions);
-        }
-        finally
-        {
-            _isNavigatingContentFrame = false;
-        }
-    }
-
-    private void NavigateToTag(string tag)
-    {
-        AppNavigationRoute route = AppNavigationRoute.Resolve(tag);
-
-        _currentNavTag = route.Tag;
-        SyncAppPageSelectorBarSelection();
         UpdateShowSpecificControls();
-        NavigateToPage(route.PageType, null);
-    }
-
-    private void SyncAppPageSelectorBarSelection()
-    {
-        SelectorBarItem? target = _currentNavTag switch
-        {
-            var tag when string.Equals(tag, AppNavigationRoute.Show.Tag, StringComparison.Ordinal) => ShowSelectorItem,
-            var tag when string.Equals(tag, AppNavigationRoute.Editor.Tag, StringComparison.Ordinal) => EditorSelectorItem,
-            var tag when string.Equals(tag, AppNavigationRoute.Reflow.Tag, StringComparison.Ordinal) => ReflowSelectorItem,
-            var tag when string.Equals(tag, AppNavigationRoute.ThemeLibrary.Tag, StringComparison.Ordinal) => ThemeLibrarySelectorItem,
-            var tag when string.Equals(tag, AppNavigationRoute.Settings.Tag, StringComparison.Ordinal) => SettingsSelectorItem,
-            _ => null,
-        };
-
-        if (target == null || ReferenceEquals(AppPageSelectorBar.SelectedItem, target))
-            return;
-
-        _selectorBarSelectionSync = true;
-        try
-        {
-            AppPageSelectorBar.SelectedItem = target;
-        }
-        finally
-        {
-            _selectorBarSelectionSync = false;
-        }
     }
 
     private void UpdateShowSpecificControls()
     {
-        var isShow = string.Equals(_currentNavTag, AppNavigationRoute.Show.Tag, StringComparison.Ordinal);
+        var isShow = _shellNav.IsOnShow;
         MediaPanelToggleButton.Visibility = isShow ? Visibility.Visible : Visibility.Collapsed;
         UpdatePresentationWorkspaceSelectorItems();
         if (isShow)
@@ -368,22 +310,6 @@ public sealed partial class MainWindow : Window
             SyncLooksTitleButton();
         }
     }
-
-    private bool CanNavigateToPresentationWorkspace(string targetTag)
-    {
-        if (!IsPresentationWorkspaceTag(targetTag))
-            return true;
-
-        if (_show.CanUsePresentationWorkspace)
-            return true;
-
-        _show.StatusMessage = "Open a presentation from Show before using Editor or Reflow.";
-        return false;
-    }
-
-    private static bool IsPresentationWorkspaceTag(string tag) =>
-        string.Equals(tag, AppNavigationRoute.Editor.Tag, StringComparison.Ordinal)
-        || string.Equals(tag, AppNavigationRoute.Reflow.Tag, StringComparison.Ordinal);
 
     private void UpdatePresentationWorkspaceSelectorItems()
     {
@@ -398,45 +324,27 @@ public sealed partial class MainWindow : Window
         ToolTipService.SetToolTip(ReflowSelectorItem, tooltip);
     }
 
-    private async Task LeavePresentationWorkspaceIfUnavailableAsync()
-    {
-        if (_show.CanUsePresentationWorkspace || !IsPresentationWorkspaceTag(_currentNavTag))
-            return;
-
-        if (!await CanNavigateToTagAsync(AppNavigationRoute.Show.Tag))
-        {
-            SyncAppPageSelectorBarSelection();
-            return;
-        }
-
-        NavigateToTag(AppNavigationRoute.Show.Tag);
-    }
-
     private void SyncMediaPanelToggleButton()
     {
         if (MediaPanelToggleButton == null)
             return;
-        var isOpen = _show.MediaPanelOpen;
-        var resources = Application.Current.Resources;
-        var primaryTextBrush = TryGetBrush(resources, "TextFillColorPrimaryBrush");
-        if (isOpen)
+
+        _mediaPanelToggleSync = true;
+        try
         {
-            MediaPanelToggleButton.Background = TryGetBrush(resources, "AccentFillColorDefaultBrush");
-            MediaPanelToggleButton.Foreground = TryGetBrush(resources, "TextOnAccentFillColorPrimaryBrush")
-                ?? TryGetBrush(resources, "TextOnAccentFillColorSecondaryBrush")
-                ?? primaryTextBrush
-                ?? new SolidColorBrush(Colors.Transparent);
+            MediaPanelToggleButton.IsChecked = _show.MediaPanelOpen;
         }
-        else
+        finally
         {
-            MediaPanelToggleButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            MediaPanelToggleButton.Foreground = primaryTextBrush
-                ?? TryGetBrush(resources, "TextFillColorSecondaryBrush");
+            _mediaPanelToggleSync = false;
         }
     }
 
     private void MediaPanelToggle_Click(object sender, RoutedEventArgs e)
     {
+        if (_mediaPanelToggleSync)
+            return;
+
         _show.ToggleMediaPanel();
         SyncMediaPanelToggleButton();
         RestoreForegroundFocus();
@@ -459,6 +367,4 @@ public sealed partial class MainWindow : Window
         await dialog.ShowAsync();
     }
 
-    private static Brush? TryGetBrush(ResourceDictionary resources, string key) =>
-        resources.TryGetValue(key, out var o) ? o as Brush : null;
 }

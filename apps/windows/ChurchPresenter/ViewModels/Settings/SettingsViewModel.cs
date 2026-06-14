@@ -6,6 +6,7 @@ using System.Linq;
 using ChurchPresenter;
 using ChurchPresenter.Backend.Rendering;
 
+
 using CommunityToolkit.Mvvm.ComponentModel;
 
 using Microsoft.Extensions.Logging;
@@ -855,15 +856,31 @@ public sealed partial class SettingsViewModel : ObservableObject
         try
         {
             CopyViewModelToSettings();
-            await _settings.SaveAsync().ConfigureAwait(true);
+            await _settings.SaveAsync().ConfigureAwait(false);
 
-            AppThemeHelper.ApplyToWindow(App.MainWindow, AppTheme);
+            var dq = App.MainWindow?.DispatcherQueue;
+            if (dq == null)
+            {
+                AppThemeHelper.ApplyToWindow(App.MainWindow, AppTheme);
+            }
+            else
+            {
+                dq.TryEnqueue(
+                    Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                    () => AppThemeHelper.ApplyToWindow(App.MainWindow, AppTheme));
+            }
 
             if (applyOutputEffects)
             {
-                _show.NotifyAudienceOutputChanged();
-                _show.NotifyStageOutputChanged();
-                _show.SyncOutputWindowsAfterSettingsSave();
+                if (dq == null)
+                {
+                    ApplySettingsOutputSideEffects();
+                    return;
+                }
+
+                dq.TryEnqueue(
+                    Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                    ApplySettingsOutputSideEffects);
             }
         }
         catch (Exception ex)
@@ -871,6 +888,13 @@ public sealed partial class SettingsViewModel : ObservableObject
             _pendingOutputSideEffects |= applyOutputEffects;
             _logger.LogError(ex, "Failed to persist settings.");
         }
+    }
+
+    private void ApplySettingsOutputSideEffects()
+    {
+        _show.NotifyAudienceOutputChanged();
+        _show.NotifyStageOutputChanged();
+        _show.SyncOutputWindowsAfterSettingsSave();
     }
 
     private void CopyViewModelToSettings()

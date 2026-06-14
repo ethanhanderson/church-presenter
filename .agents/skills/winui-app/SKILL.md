@@ -35,9 +35,9 @@ dotnet new list winui
    - Verify a new scaffold by confirming the expected project file exists and running `dotnet build` against the generated `.csproj`.
    - Launch a newly scaffolded app through the correct path for its actual packaging model and confirm there is a real top-level window instead of relying only on the launcher process exit code.
 3. Read `references/_sections.md`, then load only the reference files that match the task.
-4. Make the packaging model explicit before creating or refactoring the app. Default to packaged for Store-like product workflows and Visual Studio deploy/F5 flows. Default to unpackaged when the user expects repeatable CLI build-and-run loops or direct `.exe` launches after each change.
+4. Make the packaging model explicit before creating or refactoring the app. **In this repository (ChurchPresenter),** packaged verification always uses `.cursor/skills/winapp-mcp-winui/SKILL.md` — never Visual Studio F5 or `dotnet run` on the WinUI project. For greenfield WinUI apps elsewhere, default to packaged for Store workflows; default to unpackaged when the user expects direct `.exe` launches.
 5. When the task is an opaque XAML compiler failure such as `MSB3073` or `XamlCompiler.exe`, read `references/foundation-template-first-recovery.md` and simplify back toward the current `dotnet new winui` scaffold for the chosen packaging model before inventing custom recovery structure.
-6. For any work that creates or changes a WinUI app, make a complete but minimal edit set, then build the app and run it before responding to the user. Do this by default even when the user did not explicitly ask for verification. If a running app instance locks the output while more work remains, stop it, rebuild, relaunch, and continue verification. When the work is complete and launch verification succeeds, leave the final verified app instance running for the user unless they explicitly asked you not to.
+6. For any work that creates or changes a WinUI app, make a complete but minimal edit set, then verify before responding. **ChurchPresenter:** follow `.cursor/rules/windows-build-verification.mdc` and `.cursor/skills/winapp-mcp-winui/SKILL.md`. **Build** for compile gate; **relaunch** when runtime verification or MCP is needed; **WinApp MCP** only for crash repro, functional testing, or tasks requiring in-app interaction — not routine UI/design unless the user asks (decide per task). Use `Invoke-AgentE2EVerification.ps1 -SkipTests` or `-SkipTests -SkipBuild` when relaunching. Never use `dotnet run`, VS F5, or `launch_app` on `ChurchPresenter.exe` for verification.
 7. Treat launch verification as incomplete until the app shows objective success signals such as a responsive top-level window, expected window title, or other clear startup behavior. A spawned process by itself is not enough.
 8. Prefer Microsoft Learn for requirements, API expectations, and platform guidance.
 9. Prefer WinUI Gallery for concrete control usage, shell composition, and design details.
@@ -82,7 +82,7 @@ dotnet new list winui
 - If `config.yaml` is missing, say so clearly and fall back to the official Microsoft workflow instead of pretending the bundled path exists.
 - Keep environment readiness, packaging choice, and application startup verification as separate checks. Passing one does not prove the others.
 - Fail closed on ambiguous launch results. If the app did not clearly open, keep debugging.
-- After creating or editing a WinUI app, do not stop at a successful build. Launch the app, confirm objective startup behavior, and leave the final verified app instance running before returning control to the user unless they explicitly say not to run it.
+- After creating or editing a WinUI app, do not stop at a successful build when launch verification is practical. Run all required build/test gates before leaving an app instance open, because the running packaged app can lock subsequent `AppX` build outputs. Launch last, confirm objective startup behavior, and leave the final verified app instance running before returning control to the user unless they explicitly say not to run it.
 
 ## Reference Rules
 

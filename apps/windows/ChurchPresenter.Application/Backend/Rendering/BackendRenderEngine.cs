@@ -104,17 +104,8 @@ public interface IBackendRenderEngine
 /// </summary>
 public sealed class BackendRenderFrameResolver : IRenderFrameResolver
 {
-    private static readonly OutputLayerKind[] LayerStack =
-    [
-        OutputLayerKind.Audio,
-        OutputLayerKind.Media,
-        OutputLayerKind.Slide,
-        OutputLayerKind.Announcements,
-        OutputLayerKind.Messages,
-        OutputLayerKind.Props,
-        OutputLayerKind.LiveVideo,
-        OutputLayerKind.Mask,
-    ];
+    // Single canonical z-order shared with the WinUI surface engines and FrameComposer.
+    private static readonly OutputLayerKind[] LayerStack = OutputLayerStack.BottomToTop.ToArray();
 
     /// <inheritdoc />
     public RenderFrameSet Resolve(LiveRenderSessionState state)
@@ -781,7 +772,7 @@ public sealed class BackendRenderEngine(IRenderFrameResolver frameResolver, IRen
                 OverlayKind = overlay.Kind.ToString(),
                 Scene = overlay.Payload?.Detail is PresentationRenderPayload presentationPayload
                     ? presentationPayload.Scene
-                    : null,
+                    : OverlaySceneFactory.CreateTextOverlayScene(overlay.Id, overlay.Kind, overlay.Text),
             },
         };
     }

@@ -1,3 +1,4 @@
+using ChurchPresenter.App.Tests.Reference;
 using ChurchPresenter.App.Tests.TestSupport;
 
 using FluentAssertions;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ChurchPresenter.App.Tests.Services.Content;
 
+[ReferenceArea(ReferenceAreas.CacheAndRecovery)]
 public sealed class ContentChangeBusTests
 {
     [Fact]

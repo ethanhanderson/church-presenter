@@ -113,6 +113,10 @@ public sealed class PresentationProjectService(
             })
             .ToList();
 
+        project.Manifest.BundleMode = mediaRefs.Count > 0 || fontRefs.Count > 0
+            ? CpresBundleModes.Bundle
+            : CpresBundleModes.Document;
+
         var saveState = new BundleSaveState
         {
             ManifestJson = JsonSerializer.Serialize(project.Manifest, JsonOptions),

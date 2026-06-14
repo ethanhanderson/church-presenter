@@ -752,6 +752,35 @@ public static class PresentationModelUtilities
         };
     }
 
+    /// <summary>
+    /// Updates a text layer and its bound slide text block using the same rules as the slide editor.
+    /// </summary>
+    public static void ApplyTextLayerContent(PresentationSlide slide, TextLayer textLayer, string value)
+    {
+        ArgumentNullException.ThrowIfNull(slide);
+        ArgumentNullException.ThrowIfNull(textLayer);
+
+        textLayer.Content = value;
+        textLayer.TextBinding ??= new ThemeTextBinding();
+        SlideTextBlock? block = ResolveTextBlock(slide, textLayer.TextBinding);
+        if (block == null)
+        {
+            block = CreateTextBlock(value, textLayer.TextBinding.Role, textLayer.Name, textLayer.Id);
+            slide.TextBlocks.Add(block);
+            textLayer.TextBinding.TextBlockId = block.Id;
+            textLayer.TextBinding.Role = block.Role;
+            textLayer.TextBinding.FallbackIndex = slide.TextBlocks.Count - 1;
+            textLayer.TextBinding.PlaceholderText ??= value;
+        }
+        else
+        {
+            block.Text = value;
+            block.UpdatedAt = DateTime.UtcNow.ToString("O");
+            textLayer.TextBinding.TextBlockId = block.Id;
+            textLayer.TextBinding.Role = block.Role;
+        }
+    }
+
     public static string NormalizeRole(string? role)
     {
         if (string.IsNullOrWhiteSpace(role))

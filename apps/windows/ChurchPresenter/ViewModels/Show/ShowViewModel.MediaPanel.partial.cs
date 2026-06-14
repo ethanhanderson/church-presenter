@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using ChurchPresenter.Backend.Media;
 using ChurchPresenter.Backend.Rendering;
 
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -43,37 +44,18 @@ public partial class ShowViewModel
     }
 
     /// <summary>
-    /// Schedules a background pass through all currently visible media panel items so their
-    /// files are opened once by a temporary <see cref="Windows.Media.Playback.MediaPlayer"/>.
-    /// After that first open the OS file cache and media-framework decoder state remain warm,
-    /// cutting subsequent real loads from ~200 ms to ~20 ms.
-    /// Only video and audio items are primed; image thumbnails open near-instantly anyway.
+    /// Schedules background cache work for all currently visible media panel items.
+    /// Thumbnail requests fan out immediately; heavier video/audio decoder warmup remains bounded by the warmup service.
     /// </summary>
     private void PrimeDrawerCache()
     {
-        var items = new List<(Uri uri, bool loop)>(MediaPanelItems.Count);
-        foreach (var vm in MediaPanelItems)
-        {
-            try
-            {
-                var path = _mediaLibrary.ResolveStoredMediaPath(vm.MediaItem.Path);
-                if (string.IsNullOrWhiteSpace(path) || !System.IO.File.Exists(path))
-                    continue;
+        if (MediaPanelItems.Count == 0)
+            return;
 
-                var type = MediaInference.ResolveEffectiveMediaType(vm.MediaItem.Type, path);
-                if (!string.Equals(type, "video", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(type, "audio", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                items.Add((new Uri(path), vm.MediaItem.CueDefaults.Loop));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "PrimeDrawerCache: skipped item {Id}.", vm.Id);
-            }
-        }
-
-        _cachePrimer.PrimeItems(items);
+        MediaLibraryItem[] visibleItems = MediaPanelItems
+            .Select(static item => item.MediaItem)
+            .ToArray();
+        _ = _mediaWarmup.WarmMediaItemsAsync(visibleItems);
     }
 
     /// <summary>Refilters <see cref="MediaPanelItems"/> from the current playlist selection and search text.</summary>
@@ -103,12 +85,36 @@ public partial class ShowViewModel
                 || (i.Path ?? "").Contains(searchText, StringComparison.OrdinalIgnoreCase));
         }
 
+        List<MediaPanelItemViewModel> refreshedItems = new();
         var displayIndex = 1;
         foreach (var item in source)
         {
-            var vm = new MediaPanelItemViewModel(item, _mediaLibrary) { DisplayIndex = displayIndex };
+            var vm = new MediaPanelItemViewModel(item, _mediaLibrary, _mediaThumbnailCache) { DisplayIndex = displayIndex };
             displayIndex++;
+            refreshedItems.Add(vm);
             MediaPanelItems.Add(vm);
+        }
+
+        StartMediaPanelThumbnailBatch(refreshedItems);
+    }
+
+    private void StartMediaPanelThumbnailBatch(IReadOnlyList<MediaPanelItemViewModel> items)
+    {
+        if (items.Count == 0)
+            return;
+
+        _ = LoadMediaPanelThumbnailsAsync(items);
+    }
+
+    private async Task LoadMediaPanelThumbnailsAsync(IReadOnlyList<MediaPanelItemViewModel> items)
+    {
+        try
+        {
+            await Task.WhenAll(items.Select(static item => item.LoadThumbnailAsync())).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogDebug(ex, "Media panel thumbnail batch failed; individual items will use fallback chrome.");
         }
     }
 
@@ -130,7 +136,11 @@ public partial class ShowViewModel
         PrimeDrawerCache();
     }
 
-    partial void OnMediaPanelSearchTextChanged(string value) => RefreshMediaPanelItems();
+    partial void OnMediaPanelSearchTextChanged(string value)
+    {
+        RefreshMediaPanelItems();
+        PrimeDrawerCache();
+    }
 
     /// <summary>Toggles the media panel open/closed, preserving the last panel height.</summary>
     public void ToggleMediaPanel()
@@ -297,40 +307,17 @@ public partial class ShowViewModel
     public void PreWarmMediaItem(MediaLibraryItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
-        try
-        {
-            var prepared = _cuePreparation.PrepareMediaCue(item);
-            if (prepared?.Media == null)
-                return;
-
-            _preWarmService.RequestPreWarm(prepared.Media, prepared.Target);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Pre-warm failed for media item {Id}; will load on demand.", item.Id);
-        }
+        _ = _mediaWarmup.WarmMediaItemsAsync([item]);
     }
 
     /// <summary>
-    /// Pre-warms all media slots carried by a prepared slide cue so that when the slide is taken
-    /// live the media layers start immediately without waiting for sources to open.
+    /// Pre-warms the slide cue record and all media slots carried by a prepared slide cue so that
+    /// when the slide is taken live the output layers are ready without waiting for sources to open.
     /// </summary>
     internal void PreWarmSlideCueMedia(PreparedSlideCue cue)
     {
         ArgumentNullException.ThrowIfNull(cue);
-        try
-        {
-            if (cue.MediaLayers.MediaUnderlay is { } underlay)
-                _preWarmService.RequestPreWarm(underlay, "mediaUnderlay");
-            if (cue.MediaLayers.MediaOverlay is { } overlay)
-                _preWarmService.RequestPreWarm(overlay, "mediaOverlay");
-            if (cue.MediaLayers.Audio is { } audio)
-                _preWarmService.RequestPreWarm(audio, "audio");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Pre-warm failed for slide cue {SlideId}.", cue.SlideId);
-        }
+        _ = _mediaWarmup.WarmPreparedSlideMediaAsync(cue);
     }
 
     /// <summary>
@@ -351,8 +338,8 @@ public partial class ShowViewModel
                 return;
             }
 
-            _engine.EnterPreparedMediaCue(preparedCue);
-            _liveProduction.ReleaseClearedLayers([OutputLayerKind.Media, OutputLayerKind.Audio]);
+            _ = _cueDispatcher.DispatchMediaCueAsync(preparedCue, MediaPlaybackLayerTargetNames.MediaUnderlay);
+            _ = _cueDispatcher.ReleaseClearedLayersAsync([OutputLayerKind.Media, OutputLayerKind.Audio]);
         }
         catch (Exception ex)
         {

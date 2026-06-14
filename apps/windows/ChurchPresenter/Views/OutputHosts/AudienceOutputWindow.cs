@@ -11,18 +11,21 @@ using Windows.UI;
 namespace ChurchPresenter.Views;
 
 /// <summary>
-/// Dedicated audience-output window hosted outside the normal shell so it can be fullscreen,
-/// topmost, and non-activating on a selected monitor.
+/// Dedicated output window hosted outside the normal shell so it can fill a selected monitor
+/// as a borderless, topmost, non-activating custom output endpoint.
 /// </summary>
 internal sealed class AudienceOutputWindow : Window, IDisposable
 {
     private const nuint MouseActivateSubclassId = 1;
 
     private readonly UIElement _outputContent;
+    private readonly Grid _hostRoot;
     private readonly NativeWindowInterop.SubclassProc _subclassProc;
     private bool _disposed;
-    private bool _isFullScreen;
+    private bool _isCustomOutputPresenter;
     private bool _isInitialized;
+    private bool _isShown;
+    private RectInt32? _lastShownBounds;
 
     /// <summary>
     /// Initializes a new output window around the supplied WinUI content.
@@ -33,7 +36,8 @@ internal sealed class AudienceOutputWindow : Window, IDisposable
         ArgumentNullException.ThrowIfNull(content);
 
         _outputContent = content;
-        Content = CreateBootstrapSurface();
+        _hostRoot = CreateOutputHostRoot(content);
+        Content = _hostRoot;
         _subclassProc = WndProc;
         Hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         ConfigureWindowChrome();
@@ -64,45 +68,54 @@ internal sealed class AudienceOutputWindow : Window, IDisposable
     /// <summary>Assigns stable output topology identity to the hosted output surface.</summary>
     /// <param name="screenId">Logical screen id.</param>
     /// <param name="endpointId">Mapped endpoint id.</param>
-    public void ConfigureHostTarget(string screenId, string endpointId)
+    public bool ConfigureHostTarget(string screenId, string endpointId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(screenId);
         ArgumentException.ThrowIfNullOrWhiteSpace(endpointId);
+
+        if (string.Equals(ScreenId, screenId, StringComparison.Ordinal)
+            && string.Equals(EndpointId, endpointId, StringComparison.Ordinal))
+        {
+            return false;
+        }
 
         ScreenId = screenId;
         EndpointId = endpointId;
 
         if (_outputContent is IOutputHostTargetAware aware)
             aware.SetOutputHostTarget(new OutputHostTarget(screenId, endpointId, WindowId));
+
+        return true;
     }
 
     /// <summary>
     /// Shows or repositions the output window on the supplied monitor without stealing focus.
     /// </summary>
     /// <param name="monitor">The target monitor bounds.</param>
-    public void ShowOnMonitor(MonitorInfoDto monitor)
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task ShowOnMonitorAsync(MonitorInfoDto monitor, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(monitor);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var targetBounds = GetMonitorBounds(monitor);
         MonitorIndex = monitor.Index;
 
+        if (CanReuseCurrentPresentation(targetBounds))
+            return;
+
+        EnsureOutputContentAttached();
         ApplyBounds(monitor, showWindow: false);
-
-        if (!_isInitialized)
-        {
-            Activate();
-            AttachOutputContent();
-            EnsureFullScreenPresenter();
-            _isInitialized = true;
-        }
-
-        EnsureFullScreenPresenter();
+        EnsureCustomOutputPresenter();
+        await PrepareOutputContentAsync(cancellationToken).ConfigureAwait(true);
         AppWindow.Show(false);
+        ApplyBounds(monitor, showWindow: true);
+        _isShown = true;
+        _isInitialized = true;
+        _lastShownBounds = targetBounds;
 
-        // Ensure the main window keeps keyboard focus after all output-window setup
-        // (Activate() during first-init and presenter changes can briefly steal it).
+        // Ensure the main window keeps keyboard focus after all output-window setup.
         ReturnFocusToMainWindow();
     }
 
@@ -117,6 +130,7 @@ internal sealed class AudienceOutputWindow : Window, IDisposable
             return;
 
         AppWindow.Hide();
+        _isShown = false;
     }
 
     /// <inheritdoc />
@@ -132,13 +146,7 @@ internal sealed class AudienceOutputWindow : Window, IDisposable
 
     private void ConfigureWindowChrome()
     {
-        OverlappedPresenter presenter = AppWindow.Presenter as OverlappedPresenter ?? OverlappedPresenter.Create();
-        presenter.SetBorderAndTitleBar(false, false);
-        presenter.IsAlwaysOnTop = true;
-        presenter.IsMaximizable = false;
-        presenter.IsMinimizable = false;
-        presenter.IsResizable = false;
-        AppWindow.SetPresenter(presenter);
+        EnsureCustomOutputPresenter();
 
         nint style = NativeWindowInterop.GetWindowLongPtr(Hwnd, NativeWindowInterop.GwlStyle);
         style &= ~(NativeWindowInterop.WsCaption |
@@ -171,27 +179,57 @@ internal sealed class AudienceOutputWindow : Window, IDisposable
         _ = NativeWindowInterop.SetWindowSubclass(Hwnd, _subclassProc, MouseActivateSubclassId, 0);
     }
 
-    private void AttachOutputContent()
+    private void EnsureOutputContentAttached()
     {
-        if (!ReferenceEquals(Content, _outputContent))
-            Content = _outputContent;
+        if (!ReferenceEquals(Content, _hostRoot))
+            Content = _hostRoot;
+
+        if (!_hostRoot.Children.Contains(_outputContent))
+            _hostRoot.Children.Add(_outputContent);
     }
 
-    private void EnsureFullScreenPresenter()
+    private void EnsureCustomOutputPresenter()
     {
-        if (_isFullScreen && AppWindow.Presenter is FullScreenPresenter)
+        if (_isCustomOutputPresenter && AppWindow.Presenter is OverlappedPresenter)
             return;
 
-        AppWindow.SetPresenter(FullScreenPresenter.Create());
-        _isFullScreen = true;
+        OverlappedPresenter presenter = AppWindow.Presenter as OverlappedPresenter ?? OverlappedPresenter.Create();
+        presenter.SetBorderAndTitleBar(false, false);
+        presenter.IsAlwaysOnTop = true;
+        presenter.IsMaximizable = false;
+        presenter.IsMinimizable = false;
+        presenter.IsResizable = false;
+        AppWindow.SetPresenter(presenter);
+        _isCustomOutputPresenter = true;
     }
 
-    private static Grid CreateBootstrapSurface()
+    private async Task PrepareOutputContentAsync(CancellationToken cancellationToken)
     {
-        return new Grid
+        if (_outputContent is IOutputHostPreparer preparer)
+            await preparer.PrepareForDisplayAsync(cancellationToken).ConfigureAwait(true);
+    }
+
+    private bool CanReuseCurrentPresentation(RectInt32 targetBounds) =>
+        _isInitialized
+        && _isShown
+        && _isCustomOutputPresenter
+        && ReferenceEquals(Content, _hostRoot)
+        && _hostRoot.Children.Contains(_outputContent)
+        && _lastShownBounds is RectInt32 lastBounds
+        && lastBounds.X == targetBounds.X
+        && lastBounds.Y == targetBounds.Y
+        && lastBounds.Width == targetBounds.Width
+        && lastBounds.Height == targetBounds.Height;
+
+    private static Grid CreateOutputHostRoot(UIElement outputContent)
+    {
+        var root = new Grid
         {
             Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x00, 0x00, 0x00)),
         };
+
+        root.Children.Add(outputContent);
+        return root;
     }
 
     private static RectInt32 GetMonitorBounds(MonitorInfoDto monitor) =>
@@ -206,8 +244,8 @@ internal sealed class AudienceOutputWindow : Window, IDisposable
             NativeWindowInterop.SwpNoOwnerZOrder |
             NativeWindowInterop.SwpFrameChanged;
 
-        // Avoid showing the HWND until WinUI has been activated and the black bootstrap
-        // surface is in place; this prevents the transient white restored window flash.
+        // Keep the HWND hidden while bounds/presenter state are reconciled; the
+        // permanent black host root is already attached as the window content.
         if (showWindow)
         {
             flags |= DisplayMonitorInterop.SwpShowWindow;
@@ -303,4 +341,11 @@ public interface IOutputHostTargetAware
 {
     /// <summary>Assigns the logical screen, endpoint, and window identity for host feedback.</summary>
     void SetOutputHostTarget(OutputHostTarget target);
+}
+
+/// <summary>Implemented by output host pages that can prepare their layer hosts before first display.</summary>
+public interface IOutputHostPreparer
+{
+    /// <summary>Attaches layer surfaces and applies the current frame before the native window is shown.</summary>
+    Task PrepareForDisplayAsync(CancellationToken cancellationToken = default);
 }

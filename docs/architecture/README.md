@@ -9,9 +9,14 @@ The architecture docs are not platform implementation guides. They describe the 
 - [`target-architecture.md`](target-architecture.md) - the complete platform-agnostic product architecture: feature models, runtime flow, output system, support systems, diagnostics, and parity rules.
 - [`backend-application.md`](backend-application.md) - the shared application runtime: command pipeline, live session model, domain services, query surfaces, and recovery boundaries.
 - [`content-management.md`](content-management.md) - content, media, generated content, support files, package, sync, migration, and audit architecture.
-- [`rendering-engine-replacement.md`](rendering-engine-replacement.md) - host-neutral rendering, output composition, scene compilation, stage rendering, capture/stream consumers, and host adapters.
 - [`native-hosts.md`](native-hosts.md) - shared responsibilities for native desktop shells, output hosts, editor hosts, settings, diagnostics, and platform adapters.
 - [`file-access-and-cache-resilience.md`](file-access-and-cache-resilience.md) - file-access, resource stamp, cache, and stale/missing resource resilience rules.
+- [`formats/README.md`](formats/README.md) - portable file format index (ProPresenter parity map).
+- [`formats/cpres-v1.md`](formats/cpres-v1.md) - library-owned `.cpres` presentation document/bundle (v1).
+- [`formats/cplibrary-v1.md`](formats/cplibrary-v1.md) - `.cplibrary` library package (v1).
+- [`formats/cpplaylist-v1.md`](formats/cpplaylist-v1.md) - `.cpplaylist` playlist package (v1).
+- [`formats/cpsupport-v1.md`](formats/cpsupport-v1.md) - `.cpsupport` support configuration package (v1).
+- [`design-references.md`](design-references.md) - UX screenshots and design notes for native surfaces.
 
 ## Platform Guides
 
@@ -28,7 +33,6 @@ Use the reference docs as the product behavior source:
 
 - `docs/reference/propresenter/features.md` defines the feature map and six product models: content, cues, show, live state, output, and control.
 - `docs/reference/propresenter/features/*.md` define current ProPresenter behavior by feature family.
-- `docs/reference/propresenter/feature-inventory.md` maps behavior to ChurchPresenter capability targets and dependencies.
 - `docs/reference/propresenter/output-system/`, `media-management/`, `library-show-management/`, and `operator-workflows/` provide deeper behavior notes.
 
 The architecture docs define how native desktop apps should be built to reproduce those behaviors without coupling the shared model to one operating system or UI toolkit.
@@ -43,6 +47,7 @@ That rule applies everywhere:
 - Slide clicks, media triggers, timers, macros, remotes, devices, and keyboard shortcuts submit commands.
 - The runtime resolves live state, output layers, Looks, stage layouts, media players, capture, diagnostics, and recovery.
 - Native hosts apply resolved frames, expose platform UI, report health, and provide OS integrations.
+- Operator controls reflect runtime read models. Refreshes may update live-status properties, but they must not recreate stable controls or imply that a layer changed unless runtime live content changed.
 
 ## Platform Boundary
 
@@ -57,4 +62,4 @@ When a ProPresenter feature is researched or added:
 1. Document the current product behavior in `docs/reference/propresenter/features/*.md`.
 2. Add or update shared architecture contracts in this folder.
 3. Add platform-specific implementation guidance in the native app docs.
-4. Keep source limitations in `docs/reference/propresenter/output-system/sources.md` or `feature-inventory.md`.
+4. Keep source limitations in `docs/reference/propresenter/output-system/sources.md`.

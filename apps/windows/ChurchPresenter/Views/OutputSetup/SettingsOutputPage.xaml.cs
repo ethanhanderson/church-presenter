@@ -1,6 +1,5 @@
 using System;
 
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;

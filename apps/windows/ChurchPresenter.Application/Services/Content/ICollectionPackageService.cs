@@ -12,9 +12,19 @@ public interface ICollectionPackageService
     Task ExportLibraryAsync(string libraryId, string destinationPath, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Exports a library and its referenced presentations into a portable package archive.
+    /// </summary>
+    Task ExportLibraryAsync(string libraryId, string destinationPath, CollectionPackageExportOptions options, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Exports a playlist and its referenced presentations into a portable package archive.
     /// </summary>
     Task ExportPlaylistAsync(string playlistId, string destinationPath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Exports a playlist and its referenced presentations into a portable package archive.
+    /// </summary>
+    Task ExportPlaylistAsync(string playlistId, string destinationPath, CollectionPackageExportOptions options, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Previews a library package import without writing local files.

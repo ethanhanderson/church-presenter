@@ -1,0 +1,40 @@
+---
+description: Explain Windows/macOS native app work in plain, contextual terms for an experienced developer new to these stacks
+globs: apps/windows/**,apps/macos/**
+alwaysApply: false
+---
+
+# Native app explanations (plain language)
+
+The operator is an experienced developer (OOP, application architecture) who is **new to the native stacks** used here. They read code well but often won't recognize platform jargon or know whether a proposed API/pattern is the best choice.
+
+When working on **Windows** (`apps/windows/**`) or **macOS** (`apps/macos/**`) — design, implementation, review, debugging, refactors — explain what is going on in **general, direct terms**, grounded in **where you are in the app** and **which systems are involved**.
+
+## Glossary (required)
+
+Follow the **churchpresenter-glossary** skill (`.cursor/skills/churchpresenter-glossary/`). Read `glossary.md` when referencing product or runtime systems by name.
+
+- Use glossary terms consistently — do not invent synonyms for defined concepts (layer slot, prepared cue, Look, live session snapshot, etc.).
+- Anchor explanations in **workflow area → system → term** before files or APIs.
+- Platform-specific names (`DispatcherQueue`, XAML, `@MainActor`) are for implementation detail; product discussion stays on shared terms.
+
+## How to communicate
+
+1. **Anchor every explanation and status update in context.** Name the workflow area (Show, Editor, Output Setup, etc.), the system (unified pipeline, content graph, output host, media service), and the glossary term. Say what that part of the app is responsible for before describing the change.
+2. **Define jargon plainly on first use.** When you use a platform term (WinUI, XAML, MVVM, `DispatcherQueue`, WinRT, SwiftUI, `@MainActor`, etc.), say what it *is* and what job it does here — not just its name. Prefer general descriptions over analogies.
+3. **Use web/TS analogies sparingly.** Only compare to web concepts when the native idea has **no close parallel** in how the operator already builds apps (e.g. WinRT packaging, App SDK lifecycle, platform-specific threading rules). Most patterns need a plain definition, not a cross-stack metaphor.
+4. **Lead with intent, then specifics.** Start with *what we're doing and why in this part of the app*; follow with files, types, and APIs. Don't assume the reader knows whether something is a framework, runtime, build tool, or UI pattern.
+5. **Justify choices in repo context.** When picking an API, pattern, or file placement, note **alternatives considered** and **why this fits ChurchPresenter's structure** — especially for non-obvious decisions.
+6. **Separate platform from project.** Distinguish general C#/WinUI or Swift/SwiftUI behavior from conventions specific to this codebase.
+7. **Keep code citations precise; keep narration general.** Code stays exact; prose around it should be followable without prior WinUI/macOS vocabulary.
+
+## Status updates
+
+Use the glossary status pattern: **workflow area → system → term → change → next**. Avoid lists of identifiers without that framing.
+
+## When to go deeper
+
+- **Default:** short definition + practical implication for the current task.
+- **On request or for major decisions:** tradeoffs, system interactions, or links to official docs (Microsoft Learn for Windows/.NET; Apple docs for macOS).
+
+Do **not** dumb down architecture or skip important caveats — explain clearly and stay grounded in the app.

@@ -101,14 +101,9 @@ internal static class TestContentPaths
         mock.Setup(p => p.GetThemesJsonPath()).Returns(Path.Combine(legacyThemesDir, "themes.json"));
 
         mock.Setup(p => p.GetSongPresentationPath(It.IsAny<string>()))
-            .Returns<string>(songId => Path.Combine(presentationsRoot, "songs", $"{songId}.cpres"));
-        mock.Setup(p => p.GeneratePresentationPath(It.IsAny<string>(), It.IsAny<string>()))
-            .Returns<string, string>((title, id) =>
-            {
-                var safeTitle = string.IsNullOrWhiteSpace(title) ? "Untitled" : title.Replace(' ', '_');
-                var suffix = id.Length >= 8 ? id[..8] : id;
-                return Path.Combine(presentationsRoot, $"{safeTitle}_{suffix}.cpres");
-            });
+            .Returns<string>(title => Path.Combine(presentationsRoot, "songs", $"{ContentNaming.SanitizeFileName(title)}.cpres"));
+        mock.Setup(p => p.GeneratePresentationPath(It.IsAny<string>()))
+            .Returns<string>(title => Path.Combine(presentationsRoot, $"{ContentNaming.SanitizeFileName(title)}.cpres"));
         mock.Setup(p => p.ResolvePresentationPath(It.IsAny<string>()))
             .Returns<string>(path => Path.IsPathRooted(path) ? Path.GetFullPath(path) : Path.GetFullPath(Path.Combine(root, path)));
         mock.Setup(p => p.ToContentRelativePath(It.IsAny<string>()))

@@ -7,7 +7,12 @@ namespace ChurchPresenter.ViewModels;
 
 public partial class ShowViewModel
 {
+    private const double ShowControlsFullFooterMinimumWidth = WorkspaceDto.ShowOutputPanelDefaultWidthDpi + 80;
+    private const double ShowControlsAudioFullFooterMinimumWidth = WorkspaceDto.ShowOutputPanelMinWidthDpi;
+
     private bool _showControlsLoading;
+    private readonly List<ShowPropPanelItem> _allShowProps = [];
+    private readonly List<ShowMacroPanelItem> _allShowMacros = [];
 
     [ObservableProperty]
     private string _selectedShowControlsPanel = "audio";
@@ -39,6 +44,24 @@ public partial class ShowViewModel
     [ObservableProperty]
     private string _messageRuntimeText = string.Empty;
 
+    [ObservableProperty]
+    private double _audioFadeInSeconds = 0.5;
+
+    [ObservableProperty]
+    private double _propDissolveSeconds = 0.3;
+
+    [ObservableProperty]
+    private string _selectedPropCollectionId = string.Empty;
+
+    [ObservableProperty]
+    private string _selectedMacroCollectionId = string.Empty;
+
+    [ObservableProperty]
+    private bool _propsTileViewSelected = true;
+
+    [ObservableProperty]
+    private bool _macrosTileViewSelected = true;
+
     public ObservableCollection<ShowAudioPlaylistPanelItem> ShowAudioPlaylists { get; } = new();
 
     public ObservableCollection<ShowAudioCuePanelItem> ShowAudioItems { get; } = new();
@@ -51,7 +74,11 @@ public partial class ShowViewModel
 
     public ObservableCollection<ShowMessagePanelItem> ShowMessages { get; } = new();
 
+    public ObservableCollection<ShowCollectionPanelItem> ShowPropCollections { get; } = new();
+
     public ObservableCollection<ShowPropPanelItem> ShowProps { get; } = new();
+
+    public ObservableCollection<ShowCollectionPanelItem> ShowMacroCollections { get; } = new();
 
     public ObservableCollection<ShowMacroPanelItem> ShowMacros { get; } = new();
 
@@ -64,6 +91,14 @@ public partial class ShowViewModel
     public IAsyncRelayCommand CreatePropCommand { get; private set; } = null!;
 
     public IAsyncRelayCommand CreateMacroCommand { get; private set; } = null!;
+
+    public IRelayCommand ShowPropsTileViewCommand { get; private set; } = null!;
+
+    public IRelayCommand ShowPropsListViewCommand { get; private set; } = null!;
+
+    public IRelayCommand ShowMacrosTileViewCommand { get; private set; } = null!;
+
+    public IRelayCommand ShowMacrosListViewCommand { get; private set; } = null!;
 
     public bool ShowControlsAudioSelected => SelectedShowControlsPanel == "audio";
 
@@ -89,6 +124,24 @@ public partial class ShowViewModel
 
     public bool HasSelectedMacro => SelectedMacro != null;
 
+    public string SelectedPropCollectionName =>
+        ResolveCollectionName(ShowPropCollections, SelectedPropCollectionId, "All Props");
+
+    public string SelectedMacroCollectionName =>
+        ResolveCollectionName(ShowMacroCollections, SelectedMacroCollectionId, "All Macros");
+
+    public string AudioFadeInDurationLabel => $"{AudioFadeInSeconds:0.#}s";
+
+    public string PropDissolveDurationLabel => $"{PropDissolveSeconds:0.#}s";
+
+    public bool ShowControlsCompactFooter => OutputPanelWidth < ShowControlsFullFooterMinimumWidth;
+
+    public bool ShowControlsCompactAudioFooter => OutputPanelWidth < ShowControlsAudioFullFooterMinimumWidth;
+
+    public bool PropsListViewSelected => !PropsTileViewSelected;
+
+    public bool MacrosListViewSelected => !MacrosTileViewSelected;
+
     private void InitializeShowControlsCommands()
     {
         CreateAudioPlaylistCommand = new AsyncRelayCommand(CreateAudioPlaylistAsync);
@@ -96,6 +149,10 @@ public partial class ShowViewModel
         CreateMessageCommand = new AsyncRelayCommand(CreateMessageAsync);
         CreatePropCommand = new AsyncRelayCommand(CreatePropAsync);
         CreateMacroCommand = new AsyncRelayCommand(CreateMacroAsync);
+        ShowPropsTileViewCommand = new RelayCommand(() => PropsTileViewSelected = true);
+        ShowPropsListViewCommand = new RelayCommand(() => PropsTileViewSelected = false);
+        ShowMacrosTileViewCommand = new RelayCommand(() => MacrosTileViewSelected = true);
+        ShowMacrosListViewCommand = new RelayCommand(() => MacrosTileViewSelected = false);
     }
 
     partial void OnSelectedShowControlsPanelChanged(string value)
@@ -109,7 +166,7 @@ public partial class ShowViewModel
     }
 
     partial void OnSelectedAudioCueChanged(ShowAudioCuePanelItem? value) =>
-        OnPropertyChanged(nameof(HasSelectedAudioCue));
+        ApplySelectedAudioCue(value);
 
     partial void OnSelectedStageScreenChanged(ShowStageScreenPanelItem? value) =>
         OnPropertyChanged(nameof(HasSelectedStageAssignment));
@@ -127,10 +184,48 @@ public partial class ShowViewModel
     }
 
     partial void OnSelectedPropChanged(ShowPropPanelItem? value) =>
-        OnPropertyChanged(nameof(HasSelectedProp));
+        ApplySelectedProp(value);
 
     partial void OnSelectedMacroChanged(ShowMacroPanelItem? value) =>
         OnPropertyChanged(nameof(HasSelectedMacro));
+
+    partial void OnSelectedPropCollectionIdChanged(string value)
+    {
+        OnPropertyChanged(nameof(SelectedPropCollectionName));
+        RefreshVisibleProps();
+    }
+
+    partial void OnSelectedMacroCollectionIdChanged(string value)
+    {
+        OnPropertyChanged(nameof(SelectedMacroCollectionName));
+        RefreshVisibleMacros();
+    }
+
+    partial void OnPropsTileViewSelectedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(PropsListViewSelected));
+    }
+
+    partial void OnMacrosTileViewSelectedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(MacrosListViewSelected));
+    }
+
+    partial void OnAudioFadeInSecondsChanged(double value)
+    {
+        OnPropertyChanged(nameof(AudioFadeInDurationLabel));
+    }
+
+    partial void OnPropDissolveSecondsChanged(double value)
+    {
+        OnPropertyChanged(nameof(PropDissolveDurationLabel));
+    }
+
+    partial void OnOutputPanelWidthChanged(double value)
+    {
+        OnPropertyChanged(nameof(ShowControlsCompactFooter));
+        OnPropertyChanged(nameof(ShowControlsCompactAudioFooter));
+    }
 
     public async Task LoadShowControlsAsync(CancellationToken cancellationToken = default)
     {
@@ -147,8 +242,14 @@ public partial class ShowViewModel
             ReplaceShowControls(ShowStageLayouts, snapshot.StageLayouts);
             ReplaceShowControls(ShowTimers, snapshot.Timers);
             ReplaceShowControls(ShowMessages, snapshot.Messages);
-            ReplaceShowControls(ShowProps, snapshot.Props);
-            ReplaceShowControls(ShowMacros, snapshot.Macros);
+            ReplaceShowControls(ShowPropCollections, WithAllCollection(snapshot.PropCollections, "All Props", snapshot.Props.Count));
+            ReplaceShowControls(ShowMacroCollections, WithAllCollection(snapshot.MacroCollections, "All Macros", snapshot.Macros.Count));
+            _allShowProps.Clear();
+            _allShowProps.AddRange(snapshot.Props);
+            _allShowMacros.Clear();
+            _allShowMacros.AddRange(snapshot.Macros);
+            RefreshVisibleProps();
+            RefreshVisibleMacros();
             SelectedAudioCue ??= ShowAudioItems.FirstOrDefault();
             SelectedStageScreen ??= ShowStageScreens.FirstOrDefault();
             SelectedStageLayout ??= ShowStageLayouts.FirstOrDefault();
@@ -180,9 +281,9 @@ public partial class ShowViewModel
         if (SelectedAudioCue == null)
             return;
 
-        if (await _showControls.TriggerAudioCueAsync(SelectedAudioCue.Id).ConfigureAwait(true))
+        if (await _showControls.TriggerAudioCueAsync(SelectedAudioCue.Id, AudioFadeInSeconds).ConfigureAwait(true))
         {
-            _playbackCoordinator.SelectedTransportTarget = MediaPlaybackTarget.AudioFiles;
+            _mediaTransportPresenter.Refresh();
             StatusMessage = $"Playing audio \"{SelectedAudioCue.Name}\".";
             await LoadShowControlsAsync().ConfigureAwait(true);
         }
@@ -311,7 +412,13 @@ public partial class ShowViewModel
         ShowPropDefinition prop = await _showControls.SavePropAsync(new ShowPropDefinition
         {
             Name = $"Prop {ShowProps.Count + 1}",
+            CollectionId = string.IsNullOrWhiteSpace(SelectedPropCollectionId) ? null : SelectedPropCollectionId,
             Text = "New prop",
+            Transition = new SlideTransition
+            {
+                Type = "dissolve",
+                Duration = (int)Math.Round(PropDissolveSeconds * 1000),
+            },
         }).ConfigureAwait(true);
         StatusMessage = $"Created prop \"{prop.Name}\".";
         await LoadShowControlsAsync().ConfigureAwait(true);
@@ -323,7 +430,7 @@ public partial class ShowViewModel
         if (SelectedProp == null)
             return;
 
-        if (await _showControls.TogglePropAsync(SelectedProp.Id).ConfigureAwait(true))
+        if (await _showControls.TogglePropAsync(SelectedProp.Id, PropDissolveSeconds).ConfigureAwait(true))
         {
             StatusMessage = $"Toggled prop \"{SelectedProp.Name}\".";
             await LoadShowControlsAsync().ConfigureAwait(true);
@@ -335,6 +442,7 @@ public partial class ShowViewModel
         ShowMacroDefinition macro = await _showControls.SaveMacroAsync(new ShowMacroDefinition
         {
             Name = $"Macro {ShowMacros.Count + 1}",
+            CollectionId = string.IsNullOrWhiteSpace(SelectedMacroCollectionId) ? null : SelectedMacroCollectionId,
             IconKey = "\uE756",
             Commands =
             [
@@ -368,5 +476,69 @@ public partial class ShowViewModel
         target.Clear();
         foreach (T item in source)
             target.Add(item);
+    }
+
+    public void SelectPropCollection(string collectionId) =>
+        SelectedPropCollectionId = collectionId ?? string.Empty;
+
+    public void SelectMacroCollection(string collectionId) =>
+        SelectedMacroCollectionId = collectionId ?? string.Empty;
+
+    private void RefreshVisibleProps()
+    {
+        IEnumerable<ShowPropPanelItem> visible = string.IsNullOrWhiteSpace(SelectedPropCollectionId)
+            ? _allShowProps
+            : _allShowProps.Where(prop => string.Equals(prop.CollectionId, SelectedPropCollectionId, StringComparison.OrdinalIgnoreCase));
+        ReplaceShowControls(ShowProps, visible.ToArray());
+        if (SelectedProp == null || !ShowProps.Any(prop => string.Equals(prop.Id, SelectedProp.Id, StringComparison.OrdinalIgnoreCase)))
+            SelectedProp = ShowProps.FirstOrDefault();
+    }
+
+    private void RefreshVisibleMacros()
+    {
+        IEnumerable<ShowMacroPanelItem> visible = string.IsNullOrWhiteSpace(SelectedMacroCollectionId)
+            ? _allShowMacros
+            : _allShowMacros.Where(macro => string.Equals(macro.CollectionId, SelectedMacroCollectionId, StringComparison.OrdinalIgnoreCase));
+        ReplaceShowControls(ShowMacros, visible.ToArray());
+        if (SelectedMacro == null || !ShowMacros.Any(macro => string.Equals(macro.Id, SelectedMacro.Id, StringComparison.OrdinalIgnoreCase)))
+            SelectedMacro = ShowMacros.FirstOrDefault();
+    }
+
+    private void ApplySelectedAudioCue(ShowAudioCuePanelItem? value)
+    {
+        if (value != null)
+            AudioFadeInSeconds = value.FadeInSeconds;
+        OnPropertyChanged(nameof(HasSelectedAudioCue));
+    }
+
+    private void ApplySelectedProp(ShowPropPanelItem? value)
+    {
+        if (value != null)
+            PropDissolveSeconds = value.DissolveSeconds;
+        OnPropertyChanged(nameof(HasSelectedProp));
+    }
+
+    private static ShowCollectionPanelItem[] WithAllCollection(
+        IReadOnlyList<ShowCollectionPanelItem> source,
+        string allName,
+        int allCount)
+    {
+        return
+        [
+            new ShowCollectionPanelItem { Id = string.Empty, Name = allName, Count = allCount },
+            .. source,
+        ];
+    }
+
+    private static string ResolveCollectionName(
+        IEnumerable<ShowCollectionPanelItem> collections,
+        string collectionId,
+        string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(collectionId))
+            return fallback;
+
+        return collections.FirstOrDefault(collection => string.Equals(collection.Id, collectionId, StringComparison.OrdinalIgnoreCase))?.Name
+            ?? fallback;
     }
 }

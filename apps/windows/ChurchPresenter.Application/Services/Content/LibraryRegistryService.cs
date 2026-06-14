@@ -99,7 +99,9 @@ public sealed class LibraryRegistryService : ILibraryRegistryService
     public async Task<LibraryManifest?> LoadAsync(string libraryId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(libraryId);
-        var path = _paths.GetLibraryManifestPath(libraryId);
+        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+        var folderName = ContentRegistryFolders.ResolveFolderName(index, libraryId);
+        var path = _paths.GetLibraryManifestPath(folderName);
         var manifest = await _contentStore.ReadJsonAsync<LibraryManifest>(path, JsonOptions, cancellationToken).ConfigureAwait(false);
         if (manifest != null)
         {
@@ -117,14 +119,33 @@ public sealed class LibraryRegistryService : ILibraryRegistryService
         ArgumentNullException.ThrowIfNull(library);
         ArgumentException.ThrowIfNullOrWhiteSpace(library.Id);
 
-        var dir = _paths.GetLibraryRootDirectory(library.Id);
-        _contentStore.EnsureDirectory(dir);
+        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+        var previousFolder = ContentRegistryFolders.ResolveFolderName(index, library.Id);
+        var folderName = ContentRegistryFolders.AllocateFolderName(
+            _paths.GetLibrariesRootDirectory(),
+            index,
+            library.Id,
+            library.Name);
+
+        var previousDir = _paths.GetLibraryRootDirectory(previousFolder);
+        var targetDir = _paths.GetLibraryRootDirectory(folderName);
+        if (!string.Equals(previousDir, targetDir, StringComparison.OrdinalIgnoreCase))
+        {
+            if (_contentStore.DirectoryExists(previousDir))
+                Directory.Move(previousDir, targetDir);
+            else
+                _contentStore.EnsureDirectory(targetDir);
+        }
+        else
+        {
+            _contentStore.EnsureDirectory(targetDir);
+        }
 
         library.UpdatedAt = DateTimeOffset.UtcNow.ToString("O");
 
-        await _contentStore.WriteJsonAsync(_paths.GetLibraryManifestPath(library.Id), library, JsonOptions, cancellationToken).ConfigureAwait(false);
+        await _contentStore.WriteJsonAsync(_paths.GetLibraryManifestPath(folderName), library, JsonOptions, cancellationToken).ConfigureAwait(false);
 
-        await UpdateIndexEntryAsync(library, cancellationToken).ConfigureAwait(false);
+        await UpdateIndexEntryAsync(library, folderName, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -132,7 +153,9 @@ public sealed class LibraryRegistryService : ILibraryRegistryService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(libraryId);
 
-        var dir = _paths.GetLibraryRootDirectory(libraryId);
+        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+        var folderName = ContentRegistryFolders.ResolveFolderName(index, libraryId);
+        var dir = _paths.GetLibraryRootDirectory(folderName);
         if (_contentStore.DirectoryExists(dir))
         {
             try
@@ -146,12 +169,11 @@ public sealed class LibraryRegistryService : ILibraryRegistryService
             }
         }
 
-        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
         index.Entries.RemoveAll(e => string.Equals(e.Id, libraryId, StringComparison.OrdinalIgnoreCase));
         await SaveIndexAsync(index, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task UpdateIndexEntryAsync(LibraryManifest library, CancellationToken cancellationToken)
+    private async Task UpdateIndexEntryAsync(LibraryManifest library, string folderName, CancellationToken cancellationToken)
     {
         var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
         var existing = index.Entries.FirstOrDefault(e => string.Equals(e.Id, library.Id, StringComparison.OrdinalIgnoreCase));
@@ -160,17 +182,20 @@ public sealed class LibraryRegistryService : ILibraryRegistryService
             existing.Name = library.Name;
             existing.Description = library.Description;
             existing.UpdatedAt = library.UpdatedAt;
+            ContentRegistryFolders.ApplyFolderName(existing, folderName);
         }
         else
         {
-            index.Entries.Add(new DomainIndexEntry
+            var entry = new DomainIndexEntry
             {
                 Id = library.Id,
                 Name = library.Name,
                 Description = library.Description,
                 CreatedAt = library.CreatedAt,
                 UpdatedAt = library.UpdatedAt,
-            });
+            };
+            ContentRegistryFolders.ApplyFolderName(entry, folderName);
+            index.Entries.Add(entry);
         }
 
         await SaveIndexAsync(index, cancellationToken).ConfigureAwait(false);

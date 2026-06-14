@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using ChurchPresenter.Core.Cpres;
+
 namespace ChurchPresenter.Models.Documents;
 
 /// <summary>
@@ -55,6 +57,9 @@ public sealed class PresentationManifest
 
     [JsonPropertyName("updatedAt")]
     public string? UpdatedAt { get; set; }
+
+    [JsonPropertyName("bundleMode")]
+    public string BundleMode { get; set; } = CpresBundleModes.Bundle;
 
     [JsonPropertyName("aspectRatio")]
     public string? AspectRatio { get; set; }

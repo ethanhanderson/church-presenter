@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ChurchPresenter.App.Tests.Services.Content;
 
-/// <summary>Parity: content root and layout folders (legacy <c>get_documents_data_dir</c> / <c>ensure_*</c>).</summary>
+/// <summary>Content root and layout folders under LocalAppData (see <see cref="ContentDirectoryService"/>).</summary>
 public sealed class ContentDirectoryServiceTests
 {
     [Fact]

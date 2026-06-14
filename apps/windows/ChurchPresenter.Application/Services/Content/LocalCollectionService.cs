@@ -233,7 +233,7 @@ public sealed class LocalCollectionService(
             Arrangement = PresentationModelUtilities.CreateArrangement([slide]),
         };
 
-        var absolutePath = _paths.GeneratePresentationPath(normalizedTitle, presentationId);
+        var absolutePath = ContentNaming.EnsureUniqueFilePath(_paths.GeneratePresentationPath(normalizedTitle));
         Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
         _projects.Save(project, absolutePath);
 
@@ -457,10 +457,7 @@ public sealed class LocalCollectionService(
         if (sourcePath.StartsWith(contentRoot, StringComparison.OrdinalIgnoreCase))
             return sourcePath;
 
-        var presentationId = string.IsNullOrWhiteSpace(presentation.Manifest.PresentationId)
-            ? Guid.NewGuid().ToString("N")
-            : presentation.Manifest.PresentationId;
-        return _paths.GeneratePresentationPath(presentation.Manifest.Title, presentationId);
+        return ContentNaming.EnsureUniqueFilePath(_paths.GeneratePresentationPath(presentation.Manifest.Title));
     }
 
     private async Task<LibraryDto> ResolveLibraryAsync(string? libraryId, string? newLibraryName, CancellationToken cancellationToken)

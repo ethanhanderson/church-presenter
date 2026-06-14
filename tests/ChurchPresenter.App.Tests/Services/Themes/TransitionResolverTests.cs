@@ -1,3 +1,6 @@
+using ChurchPresenter.App.Tests.Reference;
+
+using ChurchPresenter.Backend.Rendering;
 
 using FluentAssertions;
 
@@ -6,6 +9,7 @@ namespace ChurchPresenter.App.Tests.Services.Themes;
 /// <summary>
 /// Verifies transition precedence, normalization, and round-trip persistence.
 /// </summary>
+[ReferenceArea(ReferenceAreas.ShowWorkflow)]
 public sealed class TransitionResolverTests
 {
     // ── Normalize ────────────────────────────────────────────────────────────
@@ -222,5 +226,85 @@ public sealed class TransitionResolverTests
             new PresentationSlide { Id = "s2", Animations = new SlideAnimations { Transition = null } },
             arrangement,
             global)!.Type.Should().Be("fade");
+    }
+
+    [Fact]
+    public void ToLayerTransition_preserves_transition_metadata_for_host_diffing()
+    {
+        var transition = new SlideTransition
+        {
+            Type = "Wipe",
+            Duration = 450,
+            Easing = "ease-out",
+            Parameters = new Dictionary<string, string> { ["direction"] = "fromRight" },
+        };
+
+        var result = TransitionResolver.ToLayerTransition(transition);
+
+        result.Type.Should().Be("wipe");
+        result.Duration.Should().Be(TimeSpan.FromMilliseconds(450));
+        result.Easing.Should().Be("ease-out");
+        result.Parameters.Should().Contain("direction", "fromRight");
+        result.Phase.Should().Be(LayerTransitionPhase.Pending);
+    }
+
+    // ── Typed transition descriptor ───────────────────────────────────────────
+
+    [Fact]
+    public void ToLayerTransition_populates_typed_kind_and_direction()
+    {
+        var transition = new SlideTransition
+        {
+            Type = "Slide",
+            Duration = 400,
+            Parameters = new Dictionary<string, string> { ["direction"] = "fromBottom" },
+        };
+
+        var result = TransitionResolver.ToLayerTransition(transition);
+
+        result.Kind.Should().Be(TransitionKind.Slide);
+        result.Direction.Should().Be(TransitionDirection.FromBottom);
+    }
+
+    [Fact]
+    public void ToLayerTransition_maps_zoom_keys_to_distinct_kinds()
+    {
+        TransitionResolver.ToLayerTransition(new SlideTransition { Type = "zoom-in", Duration = 300 })
+            .Kind.Should().Be(TransitionKind.ZoomIn);
+        TransitionResolver.ToLayerTransition(new SlideTransition { Type = "zoom-out", Duration = 300 })
+            .Kind.Should().Be(TransitionKind.ZoomOut);
+    }
+
+    [Fact]
+    public void None_transition_has_no_typed_kind_or_direction()
+    {
+        LayerTransitionState.None.Kind.Should().Be(TransitionKind.None);
+        LayerTransitionState.None.Direction.Should().Be(TransitionDirection.None);
+    }
+
+    [Theory]
+    [InlineData("cut", TransitionKind.Cut)]
+    [InlineData("fade", TransitionKind.Fade)]
+    [InlineData("wipe", TransitionKind.Wipe)]
+    [InlineData("slide", TransitionKind.Slide)]
+    [InlineData("push", TransitionKind.Slide)]
+    [InlineData("zoom-in", TransitionKind.ZoomIn)]
+    [InlineData("zoom-out", TransitionKind.ZoomOut)]
+    [InlineData("", TransitionKind.None)]
+    [InlineData("unknown", TransitionKind.Fade)]
+    public void TransitionContract_parses_kind(string type, TransitionKind expected)
+    {
+        TransitionContract.ParseKind(type).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("fromLeft", TransitionDirection.FromLeft)]
+    [InlineData("fromRight", TransitionDirection.FromRight)]
+    [InlineData("fromTop", TransitionDirection.FromTop)]
+    [InlineData("fromBottom", TransitionDirection.FromBottom)]
+    [InlineData("", TransitionDirection.None)]
+    public void TransitionContract_parses_direction(string direction, TransitionDirection expected)
+    {
+        TransitionContract.ParseDirection(direction).Should().Be(expected);
     }
 }

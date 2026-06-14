@@ -1,8 +1,8 @@
 using System;
 
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
 
 namespace ChurchPresenter.Views;
 
@@ -31,6 +31,13 @@ public sealed partial class ThemesPage : Page
         ThemeSlidesList.SelectedItem = ViewModel.SelectedThemeSlide;
         LayersList.SelectedItem = ViewModel.SelectedLayer;
         SourceSlidesCombo.SelectedItem = ViewModel.SelectedSourceSlide;
+    }
+
+    /// <summary>Cancels in-flight preview/thumbnail GPU work before the shell frame swaps pages.</summary>
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        NavigationTeardown.TeardownCompositionSurfaces(this);
+        base.OnNavigatedFrom(e);
     }
 
     private void ThemesList_ItemClick(object sender, ItemClickEventArgs e)

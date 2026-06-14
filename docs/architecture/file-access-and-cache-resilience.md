@@ -41,9 +41,38 @@ Caches may include:
 - font/resource resolution caches,
 - integration response caches,
 - search indexes,
-- diagnostics snapshots.
+- diagnostics snapshots,
+- prepared cue snapshots (one per `(ContentRef, LayerKind, RoutingHash)`),
+- decoded resource handles (textures, surfaces, opened media items, audio buffers) that back active or imminent prepared cues.
 
-Each cache entry needs owner, source resource stamp, cache schema version, invalidation policy, and rebuild path.
+Each cache entry needs owner, source resource stamp, cache schema version, invalidation policy, rebuild path, and a size cost so tiered budgets can evict deterministically.
+
+## Tiered Cache Model
+
+The unified output pipeline depends on a single tiered cache contract owned by the application layer. Three tiers exist, with explicit promotion/eviction rules:
+
+- **Hot (memory):** decoded surfaces, opened media items/players, prepared cue snapshots, scene graphs ready for the host adapter. Tier budget is configured per profile and enforced by size cost; eviction prefers the largest non-active entry whose owning cue is neither live nor a high-confidence look-ahead.
+- **Warm (disk):** decoded thumbnails, posters, pre-roll segments, scene caches, compiled fonts, integration response caches. Tier budget is enforced by disk quota with LRU eviction; entries are keyed by resource stamp + cache schema version.
+- **Cold (origin):** the original portable content path or provider response. Always authoritative.
+
+The runtime asks the pipeline for cues by `ContentRef`. The cache resolves the highest tier with a current stamp; misses cascade through warm to cold and re-populate higher tiers as resources allow. Re-population must never block the active frame composer thread.
+
+### Performance Budgets
+
+Budgets are platform-tuned but defined as application-layer contracts so behaviour stays portable:
+
+- Take-live latency for a warm prepared cue: visually instant (target under ~50 ms from command enqueue to first composed frame on the active surface).
+- Take-live latency for a cold prepared cue: bounded; the host shows the prior payload until the new cue's first usable frame is gated as ready (see `backend-application.md` Playback Coordination).
+- Loop boundary gap: indistinguishable from a normal frame interval; achieved via host gapless playback constructs, not seek-to-zero.
+- Snapshot diff application: per-slot work only; unaffected layers must not re-render or restart playback.
+
+The runtime records `prepareTimeMs`, `routeTimeMs`, `composeTimeMs`, `applyTimeMs`, `mediaReadyTimeMs`, `loopGapMs`, and cache hit tier per action so operators and tests can observe regressions.
+
+### Cache Coherence
+
+- Every cache entry stores the resource stamp that produced it. Stamps include content version, theme version (when applicable), provider revision, and any override hash that influenced decoding.
+- A `ContentInvalidated` signal (see `content-management.md`) marks affected entries stale and schedules re-preparation if the cue is live or hinted.
+- Stale entries are evicted only after the replacement is ready, so live frames never collapse to a placeholder during a benign source edit.
 
 ## Failure Categories
 

@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using ChurchPresenter.Core.Cpres;
 
 using Microsoft.Extensions.Logging;
 
@@ -38,10 +39,19 @@ public sealed class CollectionPackageService(
     };
 
     /// <inheritdoc />
-    public async Task ExportLibraryAsync(string libraryId, string destinationPath, CancellationToken cancellationToken = default)
+    public Task ExportLibraryAsync(string libraryId, string destinationPath, CancellationToken cancellationToken = default) =>
+        ExportLibraryAsync(libraryId, destinationPath, new CollectionPackageExportOptions(), cancellationToken);
+
+    /// <inheritdoc />
+    public async Task ExportLibraryAsync(
+        string libraryId,
+        string destinationPath,
+        CollectionPackageExportOptions options,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(libraryId);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+        ArgumentNullException.ThrowIfNull(options);
 
         await _catalog.LoadAsync().ConfigureAwait(false);
         var library = _catalog.Catalog.Libraries.FirstOrDefault(candidate =>
@@ -50,13 +60,7 @@ public sealed class CollectionPackageService(
 
         var packagedRefs = BuildPackagedRefs(library.Presentations);
         var packagedLibrary = CloneLibrary(library, packagedRefs.PackagedRefs);
-        var manifest = new CollectionPackageManifest
-        {
-            FormatVersion = PackageFormatVersion,
-            PackageType = LibraryPackageType,
-            Name = library.Name,
-            ExportedAt = DateTime.UtcNow.ToString("O"),
-        };
+        var manifest = CreateManifest(LibraryPackageType, library.Name, options);
 
         await WritePackageAsync(
             destinationPath,
@@ -64,14 +68,24 @@ public sealed class CollectionPackageService(
             "library.json",
             JsonSerializer.Serialize(packagedLibrary, JsonOptions),
             packagedRefs.BundleEntries,
+            options,
             cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task ExportPlaylistAsync(string playlistId, string destinationPath, CancellationToken cancellationToken = default)
+    public Task ExportPlaylistAsync(string playlistId, string destinationPath, CancellationToken cancellationToken = default) =>
+        ExportPlaylistAsync(playlistId, destinationPath, new CollectionPackageExportOptions(), cancellationToken);
+
+    /// <inheritdoc />
+    public async Task ExportPlaylistAsync(
+        string playlistId,
+        string destinationPath,
+        CollectionPackageExportOptions options,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(playlistId);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+        ArgumentNullException.ThrowIfNull(options);
 
         await _catalog.LoadAsync().ConfigureAwait(false);
         var playlist = _catalog.Catalog.Playlists.FirstOrDefault(candidate =>
@@ -80,13 +94,7 @@ public sealed class CollectionPackageService(
 
         var packagedRefs = BuildPackagedRefs(playlist.Items);
         var packagedPlaylist = ClonePlaylist(playlist, packagedRefs.PackagedRefs);
-        var manifest = new CollectionPackageManifest
-        {
-            FormatVersion = PackageFormatVersion,
-            PackageType = PlaylistPackageType,
-            Name = playlist.Name,
-            ExportedAt = DateTime.UtcNow.ToString("O"),
-        };
+        var manifest = CreateManifest(PlaylistPackageType, playlist.Name, options);
 
         await WritePackageAsync(
             destinationPath,
@@ -94,6 +102,7 @@ public sealed class CollectionPackageService(
             "playlist.json",
             JsonSerializer.Serialize(packagedPlaylist, JsonOptions),
             packagedRefs.BundleEntries,
+            options,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -223,7 +232,10 @@ public sealed class CollectionPackageService(
 
             if (!packagePathsBySource.TryGetValue(absolutePath, out var packagePath))
             {
-                packagePath = EnsureUniquePackagePath(BuildPackagePresentationPath(presentation.Path), usedPackagePaths);
+                var title = string.IsNullOrWhiteSpace(presentation.Title)
+                    ? Path.GetFileNameWithoutExtension(presentation.Path)
+                    : presentation.Title;
+                packagePath = EnsureUniquePackagePath(BuildPackagePresentationPathFromTitle(title), usedPackagePaths);
                 packagePathsBySource[absolutePath] = packagePath;
                 bundledEntries.Add(new PackagedPresentationEntry(absolutePath, packagePath));
             }
@@ -246,10 +258,12 @@ public sealed class CollectionPackageService(
         string metadataEntryPath,
         string metadataJson,
         IReadOnlyList<PackagedPresentationEntry> bundleEntries,
+        CollectionPackageExportOptions exportOptions,
         CancellationToken cancellationToken)
     {
         var fullPath = Path.GetFullPath(destinationPath);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        var cpresOptions = ToCpresExportOptions(exportOptions);
 
         using var file = new FileStream(fullPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
         using var archive = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: false);
@@ -260,12 +274,45 @@ public sealed class CollectionPackageService(
         foreach (var entry in bundleEntries)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await using var source = File.OpenRead(entry.SourcePath);
             var archiveEntry = archive.CreateEntry(entry.PackagePath, CompressionLevel.Optimal);
             await using var archiveStream = archiveEntry.Open();
-            await source.CopyToAsync(archiveStream, cancellationToken).ConfigureAwait(false);
+            var tempPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.cpres");
+            try
+            {
+                CpresBundleExporter.Export(entry.SourcePath, tempPath, cpresOptions);
+                await using var source = File.OpenRead(tempPath);
+                await source.CopyToAsync(archiveStream, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                TryDeleteTempFile(tempPath);
+            }
         }
     }
+
+    private static CpresBundleExportOptions ToCpresExportOptions(CollectionPackageExportOptions options) =>
+        new()
+        {
+            IncludeMedia = options.IncludeMedia,
+            IncludeFonts = options.IncludeFonts,
+            IncludeEmbeddedThemes = options.IncludeEmbeddedThemes,
+        };
+
+    private static CollectionPackageManifest CreateManifest(
+        string packageType,
+        string name,
+        CollectionPackageExportOptions options) =>
+        new()
+        {
+            FormatVersion = PackageFormatVersion,
+            PackageType = packageType,
+            Name = name,
+            ExportedAt = DateTime.UtcNow.ToString("O"),
+            PresentationBundleMode = options.IncludeMedia ? CpresBundleModes.Bundle : CpresBundleModes.Document,
+            IncludeMedia = options.IncludeMedia,
+            IncludeFonts = options.IncludeFonts,
+            IncludeEmbeddedThemes = options.IncludeEmbeddedThemes,
+        };
 
     private async Task<CollectionPackagePreview> PreviewImportAsync(
         string packagePath,
@@ -351,6 +398,24 @@ public sealed class CollectionPackageService(
                     SourcePath = media.Path,
                     DestinationPath = $"{relativeDestination}::{media.Path}",
                     Message = "Presentation bundle carries an embedded media payload.",
+                });
+            }
+
+            foreach (var font in document.Manifest.Fonts.EnumerateArray().Where(static font => font.ValueKind == JsonValueKind.Object))
+            {
+                if (!font.TryGetProperty("path", out var pathElement) || pathElement.ValueKind != JsonValueKind.String)
+                    continue;
+
+                var fontPath = pathElement.GetString();
+                if (string.IsNullOrWhiteSpace(fontPath))
+                    continue;
+
+                copyRequirements.Add(new PackageCopyRequirement
+                {
+                    Kind = PackageCopyRequirementKind.CopyEmbeddedFontPayload,
+                    SourcePath = fontPath,
+                    DestinationPath = $"{relativeDestination}::{fontPath}",
+                    Message = "Presentation bundle carries an embedded font payload.",
                 });
             }
 
@@ -496,24 +561,11 @@ public sealed class CollectionPackageService(
         if (!File.Exists(preferredAbsolutePath) || FilesMatch(preferredAbsolutePath, tempPath))
             return preferredAbsolutePath;
 
-        var presentationId = string.IsNullOrWhiteSpace(document.Manifest.PresentationId)
-            ? Guid.NewGuid().ToString()
-            : document.Manifest.PresentationId;
-        var generated = _paths.GeneratePresentationPath(document.Manifest.Title, presentationId);
+        var generated = _paths.GeneratePresentationPath(document.Manifest.Title);
         if (!File.Exists(generated) || FilesMatch(generated, tempPath))
             return generated;
 
-        var directory = Path.GetDirectoryName(generated)!;
-        var fileName = Path.GetFileNameWithoutExtension(generated);
-        var extension = Path.GetExtension(generated);
-        var suffix = 2;
-        while (true)
-        {
-            var candidate = Path.Combine(directory, $"{fileName}_{suffix}{extension}");
-            if (!File.Exists(candidate) || FilesMatch(candidate, tempPath))
-                return candidate;
-            suffix++;
-        }
+        return ContentNaming.EnsureUniqueFilePath(generated);
     }
 
     private string ResolvePreferredPresentationPath(string packagePresentationPath)
@@ -677,6 +729,12 @@ public sealed class CollectionPackageService(
         return next;
     }
 
+    private static string BuildPackagePresentationPathFromTitle(string title)
+    {
+        var fileName = $"{ContentNaming.SanitizeFileName(title)}.cpres";
+        return $"Presentations/{fileName}";
+    }
+
     private static string BuildPackagePresentationPath(string path)
     {
         var normalized = NormalizePath(path);
@@ -765,6 +823,18 @@ public sealed class CollectionPackageService(
 
         [JsonPropertyName("exportedAt")]
         public string ExportedAt { get; set; } = string.Empty;
+
+        [JsonPropertyName("presentationBundleMode")]
+        public string? PresentationBundleMode { get; set; }
+
+        [JsonPropertyName("includeMedia")]
+        public bool? IncludeMedia { get; set; }
+
+        [JsonPropertyName("includeFonts")]
+        public bool? IncludeFonts { get; set; }
+
+        [JsonPropertyName("includeEmbeddedThemes")]
+        public bool? IncludeEmbeddedThemes { get; set; }
     }
 
     private sealed record PackagedPresentationEntry(string SourcePath, string PackagePath);

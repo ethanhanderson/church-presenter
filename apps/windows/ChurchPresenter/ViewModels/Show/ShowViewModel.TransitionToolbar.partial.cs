@@ -146,7 +146,7 @@ public partial class ShowViewModel
     {
         _transitionDefaults.SetGlobalSlideFallback(ShowTransitionToolbar.ToSlideTransition(_slideToolbarDto));
         _transitionDefaults.SetGlobalMediaFallback(ShowTransitionToolbar.ToSlideTransition(_mediaToolbarDto));
-        _engine.NotifyGlobalTransitionDefaultsChanged();
+        _ = _cueDispatcher.InvalidateTransitionDefaultsAsync();
     }
 
     /// <summary>Applies a catalog transition as the global slide “custom” mode and persists.</summary>

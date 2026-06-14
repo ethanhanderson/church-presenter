@@ -373,9 +373,18 @@ public sealed partial class SlideSceneCompiler : ISlideSceneCompiler
                 Color = solid.Color,
                 AlphaMode = IsTransparentColor(solid.Color) ? RenderAlphaMode.StraightAlpha : RenderAlphaMode.Opaque,
             },
-            GradientSlideBackground => new SceneBackground
+            GradientSlideBackground gradient => new SceneBackground
             {
                 Color = "gradient",
+                GradientAngle = gradient.Angle,
+                GradientStops = gradient.Stops
+                    .OrderBy(static stop => stop.Position)
+                    .Select(static stop => new SceneGradientStop
+                    {
+                        Color = stop.Color,
+                        Position = stop.Position,
+                    })
+                    .ToArray(),
                 AlphaMode = RenderAlphaMode.Opaque,
             },
             ImageSlideBackground image => AddBackgroundDependency(
@@ -589,6 +598,10 @@ public sealed partial class SlideSceneCompiler : ISlideSceneCompiler
             .Append(request.ThemeVariantId).Append('|')
             .Append(request.BuildIndex).Append('|')
             .Append(background.Color).Append('|')
+            .Append(background.GradientAngle).Append('|')
+            .Append(string.Join(
+                ",",
+                background.GradientStops.Select(static stop => $"{stop.Position}:{stop.Color}"))).Append('|')
             .Append(background.MediaId).Append('|')
             .Append(nodes.Count);
 

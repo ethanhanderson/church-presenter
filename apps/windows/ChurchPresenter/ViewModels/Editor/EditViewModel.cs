@@ -332,25 +332,7 @@ public partial class EditViewModel : ObservableObject
                 if (textLayer == null)
                     return;
 
-                textLayer.Content = value;
-                SlideTextBlock? block = PresentationModelUtilities.ResolveTextBlock(slide, textLayer.TextBinding);
-                if (block == null)
-                {
-                    block = PresentationModelUtilities.CreateTextBlock(value, textLayer.TextBinding?.Role, textLayer.Name, textLayer.Id);
-                    slide.TextBlocks.Add(block);
-                    textLayer.TextBinding = new ThemeTextBinding
-                    {
-                        TextBlockId = block.Id,
-                        Role = block.Role,
-                        FallbackIndex = slide.TextBlocks.Count - 1,
-                        PlaceholderText = value,
-                    };
-                }
-                else
-                {
-                    block.Text = value;
-                    block.UpdatedAt = DateTime.UtcNow.ToString("O");
-                }
+                PresentationModelUtilities.ApplyTextLayerContent(slide, textLayer, value);
             });
         }
     }
@@ -494,23 +476,39 @@ public partial class EditViewModel : ObservableObject
 
     public async Task InitializeAsync()
     {
-        await _workspace.LoadAsync().ConfigureAwait(true);
-        await LoadThemesAsync().ConfigureAwait(true);
-
-        var activeProject = _activePresentation.CurrentProject;
-        var activePath = _activePresentation.CurrentPath ?? activeProject?.SourcePath;
-        if (activeProject != null && !string.IsNullOrWhiteSpace(activePath))
+        try
         {
-            LoadProject(PresentationModelUtilities.CloneProject(activeProject), activePath);
-            return;
-        }
+            await _workspace.LoadAsync().ConfigureAwait(true);
+            await LoadThemesAsync().ConfigureAwait(true);
 
-        Project = null;
-        Slides.Clear();
-        Layers.Clear();
-        SelectedSlide = null;
-        SelectedLayer = null;
-        StatusMessage = "Open a presentation from Show to edit it here.";
+            var activeProject = _activePresentation.CurrentProject;
+            var activePath = _activePresentation.CurrentPath ?? activeProject?.SourcePath;
+            if (activeProject != null && !string.IsNullOrWhiteSpace(activePath))
+            {
+                LoadProject(PresentationModelUtilities.CloneProject(activeProject), activePath);
+                return;
+            }
+
+            Project = null;
+            Slides.Clear();
+            Layers.Clear();
+            SelectedSlide = null;
+            SelectedLayer = null;
+            StatusMessage = "Open a presentation from Show to edit it here.";
+        }
+        catch (Exception ex)
+        {
+            // A corrupt presentation or workspace must not crash the editor on navigation; reset to a safe
+            // empty state and surface the failure instead of letting the async-void Loaded handler throw.
+            _logger.LogError(ex, "Editor failed to initialize.");
+            Project = null;
+            Slides.Clear();
+            Layers.Clear();
+            SelectedSlide = null;
+            SelectedLayer = null;
+            IsDirty = false;
+            StatusMessage = $"Editor could not load the presentation: {ex.Message}";
+        }
     }
 
     public async Task<bool> ConfirmNavigateAwayAsync()

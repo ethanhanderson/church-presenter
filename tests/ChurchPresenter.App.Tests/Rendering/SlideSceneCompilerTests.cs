@@ -1,9 +1,11 @@
+using ChurchPresenter.App.Tests.Reference;
 using ChurchPresenter.Backend.Rendering;
 
 using FluentAssertions;
 
 namespace ChurchPresenter.App.Tests.Rendering;
 
+[ReferenceArea(ReferenceAreas.Rendering)]
 public sealed class SlideSceneCompilerTests
 {
     [Fact]

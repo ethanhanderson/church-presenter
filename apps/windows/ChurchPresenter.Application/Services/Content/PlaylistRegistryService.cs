@@ -98,7 +98,9 @@ public sealed class PlaylistRegistryService : IPlaylistRegistryService
     public async Task<PlaylistManifest?> LoadAsync(string playlistId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(playlistId);
-        var path = _paths.GetPlaylistManifestPath(playlistId);
+        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+        var folderName = ContentRegistryFolders.ResolveFolderName(index, playlistId);
+        var path = _paths.GetPlaylistManifestPath(folderName);
         var manifest = await _contentStore.ReadJsonAsync<PlaylistManifest>(path, JsonOptions, cancellationToken).ConfigureAwait(false);
         if (manifest != null)
         {
@@ -116,14 +118,33 @@ public sealed class PlaylistRegistryService : IPlaylistRegistryService
         ArgumentNullException.ThrowIfNull(playlist);
         ArgumentException.ThrowIfNullOrWhiteSpace(playlist.Id);
 
-        var dir = _paths.GetPlaylistRootDirectory(playlist.Id);
-        _contentStore.EnsureDirectory(dir);
+        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+        var previousFolder = ContentRegistryFolders.ResolveFolderName(index, playlist.Id);
+        var folderName = ContentRegistryFolders.AllocateFolderName(
+            _paths.GetPlaylistsRootDirectory(),
+            index,
+            playlist.Id,
+            playlist.Name);
+
+        var previousDir = _paths.GetPlaylistRootDirectory(previousFolder);
+        var targetDir = _paths.GetPlaylistRootDirectory(folderName);
+        if (!string.Equals(previousDir, targetDir, StringComparison.OrdinalIgnoreCase))
+        {
+            if (_contentStore.DirectoryExists(previousDir))
+                Directory.Move(previousDir, targetDir);
+            else
+                _contentStore.EnsureDirectory(targetDir);
+        }
+        else
+        {
+            _contentStore.EnsureDirectory(targetDir);
+        }
 
         playlist.UpdatedAt = DateTimeOffset.UtcNow.ToString("O");
 
-        await _contentStore.WriteJsonAsync(_paths.GetPlaylistManifestPath(playlist.Id), playlist, JsonOptions, cancellationToken).ConfigureAwait(false);
+        await _contentStore.WriteJsonAsync(_paths.GetPlaylistManifestPath(folderName), playlist, JsonOptions, cancellationToken).ConfigureAwait(false);
 
-        await UpdateIndexEntryAsync(playlist, cancellationToken).ConfigureAwait(false);
+        await UpdateIndexEntryAsync(playlist, folderName, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -131,7 +152,9 @@ public sealed class PlaylistRegistryService : IPlaylistRegistryService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(playlistId);
 
-        var dir = _paths.GetPlaylistRootDirectory(playlistId);
+        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+        var folderName = ContentRegistryFolders.ResolveFolderName(index, playlistId);
+        var dir = _paths.GetPlaylistRootDirectory(folderName);
         if (_contentStore.DirectoryExists(dir))
         {
             try
@@ -145,12 +168,11 @@ public sealed class PlaylistRegistryService : IPlaylistRegistryService
             }
         }
 
-        var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
         index.Entries.RemoveAll(e => string.Equals(e.Id, playlistId, StringComparison.OrdinalIgnoreCase));
         await SaveIndexAsync(index, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task UpdateIndexEntryAsync(PlaylistManifest playlist, CancellationToken cancellationToken)
+    private async Task UpdateIndexEntryAsync(PlaylistManifest playlist, string folderName, CancellationToken cancellationToken)
     {
         var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
         var existing = index.Entries.FirstOrDefault(e => string.Equals(e.Id, playlist.Id, StringComparison.OrdinalIgnoreCase));
@@ -159,17 +181,20 @@ public sealed class PlaylistRegistryService : IPlaylistRegistryService
             existing.Name = playlist.Name;
             existing.Description = playlist.Description;
             existing.UpdatedAt = playlist.UpdatedAt;
+            ContentRegistryFolders.ApplyFolderName(existing, folderName);
         }
         else
         {
-            index.Entries.Add(new DomainIndexEntry
+            var entry = new DomainIndexEntry
             {
                 Id = playlist.Id,
                 Name = playlist.Name,
                 Description = playlist.Description,
                 CreatedAt = playlist.CreatedAt,
                 UpdatedAt = playlist.UpdatedAt,
-            });
+            };
+            ContentRegistryFolders.ApplyFolderName(entry, folderName);
+            index.Entries.Add(entry);
         }
 
         await SaveIndexAsync(index, cancellationToken).ConfigureAwait(false);

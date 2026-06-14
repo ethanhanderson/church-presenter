@@ -74,6 +74,9 @@ public enum RenderPayloadKind
 
     /// <summary>Generated overlay payload such as a message or prop.</summary>
     Overlay,
+
+    /// <summary>Mask payload (vector geometry or alpha image) constraining the layers below it.</summary>
+    Mask,
 }
 
 /// <summary>
@@ -143,6 +146,19 @@ public sealed record LayerTransitionState
 
     /// <summary>Transition type, such as cut, fade, or slide.</summary>
     public string? Type { get; init; }
+
+    /// <summary>Validated transition kind parsed from <see cref="Type"/>; hosts should prefer this.</summary>
+    public TransitionKind Kind { get; init; } = TransitionKind.None;
+
+    /// <summary>Validated direction for direction-bearing transitions (wipe/slide).</summary>
+    public TransitionDirection Direction { get; init; } = TransitionDirection.None;
+
+    /// <summary>Easing curve requested by the cue, when supported by the host.</summary>
+    public string? Easing { get; init; }
+
+    /// <summary>Type-specific transition parameters such as direction.</summary>
+    public IReadOnlyDictionary<string, string> Parameters { get; init; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Transition duration requested by command or cue resolution.</summary>
     public TimeSpan Duration { get; init; }
@@ -380,6 +396,9 @@ public sealed record RenderDiagnostics
 
     /// <summary>Structured render or recovery errors attached to this frame.</summary>
     public IReadOnlyList<RenderErrorDescriptor> RenderErrors { get; init; } = Array.Empty<RenderErrorDescriptor>();
+
+    /// <summary>Informational composition-policy notes (non-error), such as background-vs-media layering.</summary>
+    public IReadOnlyList<string> Notes { get; init; } = Array.Empty<string>();
 
     /// <summary>Optional render or recovery message.</summary>
     public string? Message { get; init; }

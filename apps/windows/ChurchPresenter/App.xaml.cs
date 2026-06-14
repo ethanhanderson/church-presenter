@@ -111,6 +111,10 @@ public partial class App : Application
             };
 
             await maintenance.StartAsync().ConfigureAwait(false);
+
+            // Catalog + workspace selection are now loaded, so warm slide-action media for the selected
+            // presentation/playlist first, then the rest of the media-drawer library in the background.
+            Services.GetRequiredService<IMediaStartupWarmupService>().QueueStartupWarmup();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -136,7 +140,14 @@ public partial class App : Application
         if (string.Equals(Environment.GetEnvironmentVariable("CHURCH_PRESENTER_DEBUG_THROW"), "1", StringComparison.OrdinalIgnoreCase))
             return true;
 
+#if DEBUG
+        // In Debug builds, always leave UI-thread exceptions unhandled so Visual Studio
+        // can break on them via Exception Settings → Common Language Runtime Exceptions.
+        // Run with F5 (not Ctrl+F5) to take advantage of this.
+        return true;
+#else
         return false;
+#endif
     }
 
     private void CurrentDomain_UnhandledException(object? sender, System.UnhandledExceptionEventArgs e)
@@ -154,6 +165,15 @@ public partial class App : Application
 
     private void ReportUnexpectedException(string source, Exception exception, bool canRecover)
     {
+        try
+        {
+            Hosting.ShowNavigationDiagnostics.LogCrash(source, exception);
+        }
+        catch
+        {
+            // Best effort only.
+        }
+
         try
         {
             _logger?.LogError(exception, "Unhandled exception from {Source}. Recoverable: {CanRecover}", source, canRecover);

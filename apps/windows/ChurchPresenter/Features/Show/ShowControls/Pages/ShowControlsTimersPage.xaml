@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="ChurchPresenter.Features.Show.ShowControls.Pages.ShowControlsTimersPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:ChurchPresenter.Features.Show.ShowControls.Pages"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    x:DataType="local:ShowControlsTimersPage"
+    Background="Transparent"
+    mc:Ignorable="d">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
+        <TextBlock FontWeight="SemiBold" Text="Timers" />
+        <ListView Grid.Row="1" MinHeight="120" DisplayMemberPath="Name" ItemsSource="{x:Bind ViewModel.ShowTimers, Mode=OneWay}" SelectedItem="{x:Bind ViewModel.SelectedTimer, Mode=TwoWay}" />
+        <StackPanel Grid.Row="2" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
+            <Button Command="{x:Bind ViewModel.CreateTimerCommand, Mode=OneWay}" Content="New" />
+            <Button Command="{x:Bind ViewModel.ResetSelectedTimerCommand, Mode=OneWay}" Content="Reset" IsEnabled="{x:Bind ViewModel.HasSelectedTimer, Mode=OneWay}" />
+            <Button Command="{x:Bind ViewModel.StopSelectedTimerCommand, Mode=OneWay}" Content="Stop" IsEnabled="{x:Bind ViewModel.HasSelectedTimer, Mode=OneWay}" />
+            <Button Command="{x:Bind ViewModel.StartSelectedTimerCommand, Mode=OneWay}" Content="Start" IsEnabled="{x:Bind ViewModel.HasSelectedTimer, Mode=OneWay}" Style="{ThemeResource AccentButtonStyle}" />
+        </StackPanel>
+    </Grid>
+</Page>

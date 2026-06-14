@@ -190,7 +190,9 @@ public sealed class SharedConfigService : ISharedConfigService
         Show.Timers ??= new List<ShowTimerDefinition>();
         Show.Messages ??= new List<ShowMessageDefinition>();
         Show.Props ??= new List<ShowPropDefinition>();
+        Show.PropCollections ??= new List<ShowControlCollectionDefinition>();
         Show.Macros ??= new List<ShowMacroDefinition>();
+        Show.MacroCollections ??= new List<ShowControlCollectionDefinition>();
         Show.AudioPlaylists ??= new List<ShowAudioPlaylistDefinition>();
         foreach (ShowMessageDefinition message in Show.Messages)
         {
@@ -235,6 +237,8 @@ public sealed class SharedConfigService : ISharedConfigService
 
         Show.MediaPanelScaleStep = Math.Clamp(Show.MediaPanelScaleStep, 0, 7);
         Show.MediaSeekSeconds = Show.MediaSeekSeconds <= 0 ? 5 : Math.Clamp(Show.MediaSeekSeconds, 1, 60);
+        if (string.IsNullOrWhiteSpace(Show.OutputClearInactiveAppearance))
+            Show.OutputClearInactiveAppearance = "disabledAccent";
         NormalizeToolbarTransition(Show.GlobalSlideTransition);
         NormalizeToolbarTransition(Show.GlobalMediaTransition);
         if (Show.SchemaVersion < 3)

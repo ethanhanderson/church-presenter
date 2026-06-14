@@ -23,7 +23,8 @@ public static class AppServices
         services
             .AddAppLogging()
             .AddApplicationServices()
-            .AddLiveProductionServices()
+            .AddPipelineServices()
+            .AddRenderingPipelineHost()
             .AddWinUiHostServices()
             .AddAppViewModels()
             .AddAppPages();

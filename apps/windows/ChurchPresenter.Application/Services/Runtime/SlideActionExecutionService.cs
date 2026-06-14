@@ -2,6 +2,7 @@ using System.Text.Json;
 
 using ChurchPresenter.Backend.Commands;
 using ChurchPresenter.Backend.Overlays;
+using ChurchPresenter.Backend.Pipeline.Commands;
 using ChurchPresenter.Backend.Rendering;
 
 using Microsoft.Extensions.Logging;
@@ -23,20 +24,18 @@ public interface ISlideActionExecutionService
 
 /// <inheritdoc />
 public sealed class SlideActionExecutionService(
-    ILiveSessionService live,
+    ICueDispatcher cueDispatcher,
     IShowTimerService timers,
-    ILogger<SlideActionExecutionService> logger,
-    ILiveProductionFacade? liveProduction = null) : ISlideActionExecutionService
+    ILogger<SlideActionExecutionService> logger) : ISlideActionExecutionService
 {
     private static readonly JsonSerializerOptions MacroCommandJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
     };
 
-    private readonly ILiveSessionService _live = live ?? throw new ArgumentNullException(nameof(live));
+    private readonly ICueDispatcher _cueDispatcher = cueDispatcher ?? throw new ArgumentNullException(nameof(cueDispatcher));
     private readonly IShowTimerService _timers = timers ?? throw new ArgumentNullException(nameof(timers));
     private readonly ILogger<SlideActionExecutionService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    private readonly ILiveProductionFacade? _liveProduction = liveProduction;
 
     /// <inheritdoc />
     public void ExecuteForSlide(PresentationSlide? slide)
@@ -69,11 +68,9 @@ public sealed class SlideActionExecutionService(
                     break;
                 case "blackouton":
                     pendingCommands.Add(CreateMaskCommand(action, isVisible: true, source));
-                    _live.SetBlackout(true);
                     break;
                 case "blackoutoff":
                     pendingCommands.Add(CreateMaskCommand(action, isVisible: false, source));
-                    _live.SetBlackout(false);
                     break;
                 case "clearall":
                     pendingCommands.Add(LiveCommandExecutor.ClearGroup("clear-all", source));
@@ -102,6 +99,7 @@ public sealed class SlideActionExecutionService(
                     pendingCommands.Add(CreateOverlayCommand(action, OverlayContentKind.Prop, isVisible: true, source));
                     break;
                 case "hideprop":
+                case "dismissprop":
                     pendingCommands.Add(CreateOverlayCommand(action, OverlayContentKind.Prop, isVisible: false, source));
                     break;
                 case "announcement":
@@ -110,6 +108,7 @@ public sealed class SlideActionExecutionService(
                     pendingCommands.Add(CreateOverlayCommand(action, OverlayContentKind.Announcement, isVisible: true, source));
                     break;
                 case "hideannouncement":
+                case "dismissannouncement":
                     pendingCommands.Add(CreateOverlayCommand(action, OverlayContentKind.Announcement, isVisible: false, source));
                     break;
                 case "stagemessage":
@@ -152,15 +151,14 @@ public sealed class SlideActionExecutionService(
         if (commands.Count == 0)
             return;
 
-        _liveProduction?.ExecuteCommands(commands, source);
+        foreach (LiveCommand command in commands)
+            _ = _cueDispatcher.DispatchAsync(command);
+
         commands.Clear();
     }
 
     private void ExecuteMacroAction(SlideActionDefinition action, LiveCommandSource source)
     {
-        if (_liveProduction == null)
-            return;
-
         if (!TryReadMacroCommands(action, out IReadOnlyList<LiveCommand> commands))
         {
             _logger.LogDebug("Ignoring macro slide action {ActionId} because it does not contain commands.", action.Id);
@@ -170,7 +168,7 @@ public sealed class SlideActionExecutionService(
         string macroId = !string.IsNullOrWhiteSpace(action.Value)
             ? action.Value
             : ResolveActionId(action, "macro");
-        _liveProduction.ExecuteMacro(
+        _ = _cueDispatcher.ExecuteMacroAsync(
             new LiveMacroDefinition
             {
                 Id = macroId,

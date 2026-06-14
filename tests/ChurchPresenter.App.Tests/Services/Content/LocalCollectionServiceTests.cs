@@ -358,6 +358,7 @@ public sealed class LocalCollectionServiceTests
             settings,
             projects,
             presentations,
+            cpres,
             NullLogger<PresentationItemActionService>.Instance);
         var service = new LocalCollectionService(paths.Object, catalog, libraryRegistry, playlistRegistry, presentations, projects, NullLogger<LocalCollectionService>.Instance, presentationActions);
 

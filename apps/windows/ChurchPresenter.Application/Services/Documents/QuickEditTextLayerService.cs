@@ -112,13 +112,13 @@ public sealed class QuickEditTextLayerService(
                 slide.Layers.Add(existingLayer);
             }
 
-            existingLayer.Content = text;
-            existingLayer.TextBinding ??= new ThemeTextBinding { Role = ResolveSlideRole(slide), FallbackIndex = 0 };
-            var textBlock = ResolveOrCreateTextBlock(slide, existingLayer, text);
-            textBlock.Text = text;
-            textBlock.UpdatedAt = DateTime.UtcNow.ToString("O");
-            existingLayer.TextBinding.TextBlockId = textBlock.Id;
-            existingLayer.TextBinding.Role = textBlock.Role;
+            existingLayer.TextBinding ??= new ThemeTextBinding
+            {
+                Role = ResolveSlideRole(slide),
+                FallbackIndex = 0,
+                PlaceholderText = draftLayer.TextBinding?.PlaceholderText ?? draftLayer.Content,
+            };
+            PresentationModelUtilities.ApplyTextLayerContent(slide, existingLayer, text);
             existingLayer.TextBinding.PlaceholderText ??= draftLayer.TextBinding?.PlaceholderText ?? draftLayer.Content;
         }
 
@@ -207,21 +207,6 @@ public sealed class QuickEditTextLayerService(
                    || candidate.RoleAliases.Any(alias =>
                        string.Equals(PresentationModelUtilities.NormalizeRole(alias), role, StringComparison.OrdinalIgnoreCase)))
                ?? theme.Slides.FirstOrDefault();
-    }
-
-    private static SlideTextBlock ResolveOrCreateTextBlock(PresentationSlide slide, TextLayer layer, string text)
-    {
-        var block = PresentationModelUtilities.ResolveTextBlock(slide, layer.TextBinding, layer.TextBinding?.FallbackIndex ?? 0);
-        if (block != null)
-            return block;
-
-        block = PresentationModelUtilities.CreateTextBlock(
-            text,
-            layer.TextBinding?.Role ?? ResolveSlideRole(slide),
-            string.IsNullOrWhiteSpace(layer.Name) ? "Text" : layer.Name,
-            layer.Id);
-        slide.TextBlocks.Add(block);
-        return block;
     }
 
     private static SlideSizeDto ResolveSlideSize(PresentationProject project) =>

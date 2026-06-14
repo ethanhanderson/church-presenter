@@ -16,7 +16,6 @@ ProPresenter separates durable content libraries from the service playlists that
 - [Syncing Between Computers](https://support.renewedvision.com/hc/en-us/articles/360041588774-Syncing-Between-Computers-with-ProPresenter)
 - [Migrating ProPresenter Data to a New Machine](https://support.renewedvision.com/hc/en-us/articles/360041339674-Migrating-ProPresenter-Data-to-a-New-Machine)
 - [Library and show management](../library-show-management/libraries-playlists-integrations.md)
-- [Feature inventory](../feature-inventory.md)
 
 ## Libraries
 

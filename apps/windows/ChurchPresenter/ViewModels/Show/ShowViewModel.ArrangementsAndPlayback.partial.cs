@@ -10,6 +10,8 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using ChurchPresenter.Services.Pipeline;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml.Media;
 
@@ -486,10 +488,10 @@ public partial class ShowViewModel
             // Use the playback sequence if available; otherwise flat slide list.
             if (_playbackSequence.Count > 0)
             {
-                if (string.IsNullOrWhiteSpace(_engine.CurrentSlideId))
+                if (string.IsNullOrWhiteSpace(GetLiveSlideId()))
                     return;
 
-                var current = _playbackSequence.FindCurrentProgramInstance(_engine.CurrentSlideInstanceKey, _engine.CurrentSlideId);
+                var current = _playbackSequence.FindCurrentProgramInstance(GetLiveSlideInstanceKey(), GetLiveSlideId());
                 var currentIdx = current != null ? _playbackSequence.IndexOfInstanceKey(current.InstanceKey) : -1;
                 // Find next non-disabled instance.
                 var next = -1;
@@ -512,7 +514,7 @@ public partial class ShowViewModel
             }
             else
             {
-                if (string.IsNullOrWhiteSpace(_engine.CurrentSlideId))
+                if (string.IsNullOrWhiteSpace(GetLiveSlideId()))
                     return;
 
                 var nextSlide = FindNextEnabledAutoAdvanceSlide();
@@ -529,11 +531,11 @@ public partial class ShowViewModel
 
     private PresentationSlide? FindNextEnabledAutoAdvanceSlide()
     {
-        if (OpenProject == null || string.IsNullOrWhiteSpace(_engine.CurrentSlideId))
+        if (OpenProject == null || string.IsNullOrWhiteSpace(GetLiveSlideId()))
             return null;
 
         var currentIndex = OpenProject.Slides.ToList().FindIndex(slide =>
-            string.Equals(slide.Id, _engine.CurrentSlideId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(slide.Id, GetLiveSlideId(), StringComparison.OrdinalIgnoreCase));
         for (var i = currentIndex + 1; i < OpenProject.Slides.Count; i++)
         {
             if (!OpenProject.Slides[i].Disabled)
@@ -615,24 +617,43 @@ public partial class ShowViewModel
         SyncBrowseStackSlideRowsFromSlideDeck();
         RebuildGroupedSections();
         RefreshAllSlideDeckState();
+        QueueVisibleDeckCueWarmup();
     }
 
     // ── Media playback coordinator ───────────────────────────────────────────
 
-    /// <summary>Shared observable state for the active media cue playback (used by the output-panel transport row).</summary>
-    public IMediaPlaybackCoordinator PlaybackCoordinator => _playbackCoordinator;
+    [RelayCommand]
+    private async Task MediaTogglePlayPause()
+    {
+        var target = _mediaTransportPresenter.SelectedTransportTarget;
+        TransportDisplaySnapshot display = _mediaTransport.GetDisplay(target);
+        if (display.IsPlaying)
+            await _mediaTransport.PauseAsync(target).ConfigureAwait(true);
+        else
+            await _mediaTransport.PlayAsync(target).ConfigureAwait(true);
+        _mediaTransportPresenter.Refresh();
+    }
 
     [RelayCommand]
-    private void MediaTogglePlayPause() => _playbackCoordinator.TogglePlayPause();
+    private async Task MediaRestart()
+    {
+        await _mediaTransport.RestartAsync(_mediaTransportPresenter.SelectedTransportTarget).ConfigureAwait(true);
+        _mediaTransportPresenter.Refresh();
+    }
 
     [RelayCommand]
-    private void MediaRestart() => _playbackCoordinator.Restart();
+    private async Task MediaSeekForward()
+    {
+        await _mediaTransport.SeekForwardAsync(_mediaTransportPresenter.SelectedTransportTarget).ConfigureAwait(true);
+        _mediaTransportPresenter.Refresh();
+    }
 
     [RelayCommand]
-    private void MediaSeekForward() => _playbackCoordinator.SeekForward(GetMediaSeekSeconds());
-
-    [RelayCommand]
-    private void MediaSeekBackward() => _playbackCoordinator.SeekBackward(GetMediaSeekSeconds());
+    private async Task MediaSeekBackward()
+    {
+        await _mediaTransport.SeekBackwardAsync(_mediaTransportPresenter.SelectedTransportTarget).ConfigureAwait(true);
+        _mediaTransportPresenter.Refresh();
+    }
 
     private int GetMediaSeekSeconds() => MediaSeekSeconds <= 0 ? 5 : Math.Clamp(MediaSeekSeconds, 1, 60);
 

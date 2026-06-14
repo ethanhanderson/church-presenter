@@ -13,7 +13,7 @@ The macOS app may use Swift, SwiftUI, AppKit, AVFoundation, Core Audio, Core Ani
 
 ## Goals
 
-- Keep platform-neutral contracts, schemas, command semantics, output routing, content graph rules, and diagnostics aligned with `target-architecture.md`, `backend-application.md`, `content-management.md`, `rendering-engine-replacement.md`, `native-hosts.md`, and `file-access-and-cache-resilience.md`.
+- Keep platform-neutral contracts, schemas, command semantics, output routing, content graph rules, and diagnostics aligned with `target-architecture.md`, `backend-application.md`, `content-management.md`, `native-hosts.md`, and `file-access-and-cache-resilience.md`.
 - Make the macOS codebase feel native without letting SwiftUI/AppKit state become the source of live production truth.
 - Split code by ownership: app host, feature presentation, runtime bridge, platform adapters, rendering hosts, machine-local persistence, shared UI, tests, fixtures, and docs.
 - Make every feature area scalable enough for the ProPresenter-derived feature map: Show, Editor, Reflow, Themes, Output Setup, Settings/Support, media/audio, stage, overlays, integrations, diagnostics, automation, remotes, capture, and transports.
@@ -409,6 +409,45 @@ Restrictions:
 - Do not serialize editor adorners into document models.
 - Do not turn screenshots of output windows into the main capture pipeline when resolved frames or renderer-owned textures are available.
 
+#### Unified Output Pipeline Layout
+
+The macOS host implements the **unified output pipeline** defined in [`target-architecture.md`](../target-architecture.md) and [`backend-application.md`](../backend-application.md). Pipeline stage code lives in the runtime bridge / rendering packages; macOS adapters wire it to AppKit, Core Animation, AVFoundation, and Core Audio.
+
+```text
+Packages/ChurchPresenterRuntimeBridge/
+  Sources/ChurchPresenterRuntimeBridge/
+    Pipeline/
+      LiveCommandBus.swift            # AsyncStream<LiveCommand> + executor actor
+      CueRequestModels.swift          # CueRequest, CueKind, RoutingHints
+      PreparedCueModels.swift         # PreparedCue, ResourceStamp
+      CuePreparationCoordinator.swift # actor-backed background prepares
+      PreparedCueCache.swift          # NSCache-backed, totalCostLimit per tier
+      LayerRouter.swift               # snapshot mutation per slot
+      FrameComposer.swift             # per-screen ordered composition
+      PipelineDiagnostics.swift       # prepare/route/compose/apply timings
+
+Packages/ChurchPresenterRendering/
+  Sources/ChurchPresenterRendering/
+    Audience/
+      AudienceFrameRenderer.swift     # applies AudienceFrameSet diffs
+      LayerSurfaceController.swift    # per-slot CALayer/CAMetalLayer front+back
+      MaskCompositor.swift            # CALayer.mask binding per screen
+      TransitionAnimator.swift        # CAAnimation-driven slot transitions
+    Media/
+      MediaSlotBinding.swift          # AVPlayer/AVQueuePlayer + AVPlayerLooper
+      MediaReadinessGate.swift        # AVPlayerItem.status + likelyToKeepUp
+      AudioRoutingBinding.swift       # AVAudioSession / Core Audio routes
+```
+
+Pipeline rules on macOS:
+
+- The command bus is an `AsyncStream<LiveCommand>` (or `AsyncChannel`) drained by a single executor actor. UI dispatch back to AppKit/SwiftUI uses `MainActor.run { ... }`; the bus thread never touches the layer tree directly.
+- `CuePreparationCoordinator` is an `actor` that runs prepare work on background tasks. Preparation opens `AVAsset`/`AVPlayerItem`, compiles scenes, and warms `CALayer`/`MTLTexture` resources off the main actor.
+- `PreparedCueCache` wraps `NSCache` (`totalCostLimit` per tier). Entry cost equals decoded bytes + retained surface count; eviction prefers the largest non-active entry whose cue is neither live nor a high-confidence look-ahead.
+- `LayerSurfaceController` maintains one persistent root `CALayer` per logical screen and one persistent child layer per fixed layer slot (Audio, Messages, Props, Announcements, Slide, Media, Live Video, Mask). Slot layers are reused for the window's lifetime; transitions swap front/back roles via `CAAnimation`.
+- `MediaSlotBinding` uses `AVQueuePlayer` + `AVPlayerLooper` for looping cues; the host never seeks to zero. `MediaReadinessGate` defers the front/back swap until `AVPlayerItem.status == .readyToPlay` and `isPlaybackLikelyToKeepUp == true`.
+- `MaskCompositor` applies the Mask layer as a `CALayer.mask` constraint on the per-screen root, not as a separate top-of-stack visual.
+
 ### `ChurchPresenterPlatformAdapters`
 
 This package owns macOS APIs behind capability, health, and feedback contracts.
@@ -627,6 +666,7 @@ Guidelines:
 - Keep AppKit controllers responsible for native window/view lifecycle, not product semantics.
 - Use actors or serial queues for resource managers with thread-affinity: media players, capture sessions, file access, render queues, and cache writers.
 - Treat `@State` and `@Observable` as presentation state. They are not the live session.
+- Keep runtime query projection identity stable. A refresh from the runtime bridge should not replace `Identifiable` row models for the same slide, media cue, clear action, output endpoint, or transport lane unless the underlying definition changed.
 
 Service protocols should describe capabilities from the host's point of view:
 
@@ -684,6 +724,14 @@ Reusable views should be organized by product interaction pattern:
 - Empty states: missing content root, no playlist selected, no endpoint mapped, denied permission.
 
 Reusable panels should expose intent callbacks or command protocol dependencies, not runtime singletons. A `ClearGroupButton` can receive a `ClearGroupDTO` and an `onActivate` closure. It should not know how to expand the clear group.
+
+Clear and recovery controls should also receive a stable UI projection that separates action definition from live status:
+
+- Action definition: id, label, icon, optional tint, target layer ids, clear-group id, and command factory.
+- Live status: active/enabled flags derived from runtime live-layer queries.
+- Host state: focus, hover, menu validation, and local disclosure state.
+
+When only live status changes, update the existing observable row/button model. Replace collection entries only when the action definition or ordering changes. This keeps SwiftUI `ForEach` identity, AppKit control identity, keyboard focus, and accessibility state stable while runtime refreshes continue.
 
 ## Inspectors
 
@@ -760,6 +808,8 @@ Media adapters:
 - Apply runtime-resolved cue policy: in/out, delay, rate, loop, retrigger, stop behavior, marker actions, scaling, crop, poster, volume, and transitions.
 - Report readiness, time, marker, stall, failure, loop, and end-of-item status.
 - Raise marker events into the command executor.
+- Own QuickLookThumbnailing and `AVAssetImageGenerator` calls behind adapter protocols. Feature view models receive thumbnail status and image handles/projections; runtime contracts stay free of Quick Look, AVFoundation, AppKit, and SwiftUI image types.
+- Keep media drawer rows stable from runtime asset/cue ids. Thumbnail and readiness changes update existing observable row models rather than replacing cards or hiding assets while posters are pending.
 
 Audio adapters:
 
@@ -878,6 +928,7 @@ Use `docs/architecture/` for shared architecture and cross-platform decisions. U
 
 - Building the Show page as the live-state owner.
 - Letting SwiftUI `@State`, `@Observable`, or AppKit controller fields become authoritative layer/player/output truth.
+- Recreating clear buttons or swapping active/inactive views when only the runtime live-layer status changed.
 - Having output windows inspect presentations, playlists, or media folders directly.
 - Implementing Look routing, clear groups, stage layout resolution, or macro expansion in views.
 - Treating Media Bin or Audio Bin as a raw file browser.
@@ -891,73 +942,12 @@ Use `docs/architecture/` for shared architecture and cross-platform decisions. U
 - Writing tests that duplicate the full runtime semantic matrix instead of testing macOS projection and adapter behavior.
 - Preserving temporary compatibility shims for unshipped macOS behavior instead of replacing them with the correct architecture.
 
-## Phased Bootstrap and Migration Plan
-
-### Phase 1: Workspace and Contracts
-
-- Create `apps/macos/ChurchPresenter/` with the workspace, thin app target, and local Swift packages.
-- Add `ChurchPresenterRuntimeContracts` with command, query, content, output, rendering, diagnostic, resource, and machine-binding DTOs aligned to shared architecture.
-- Add contract conformance tests using small shared fixtures before building feature UI.
-- Decide whether the macOS app embeds a shared runtime core or consumes/generated-reimplements runtime contracts in Swift. Record the decision in app docs.
-
-### Phase 2: App Host and Machine State
-
-- Implement startup, app container, settings store, bookmark store, cache root provider, Keychain wrapper, and diagnostic sink.
-- Open the operator shell even when content roots, bookmarks, displays, media permissions, or transport adapters are degraded.
-- Add menu command skeletons and focused selection plumbing without live semantics in the shell.
-
-### Phase 3: Read-Only Feature Projections
-
-- Build read-only Show, Output Setup, Settings/Support, and diagnostics projections from runtime query clients.
-- Add design-system primitives for cards, source lists, inspectors, transport strips, health badges, and empty states.
-- Verify accessibility labels and keyboard traversal while surfaces are still semantically simple.
-
-### Phase 4: Command Dispatch and Document Mutations
-
-- Wire slide take, media/audio trigger, clear layer, clear group, Look activation, stage message, macro run, and recovery actions through `LiveCommand`.
-- Wire Editor, Reflow, Themes, and cue inspectors to document mutation clients.
-- Add tests that prove views produce correct commands or mutations with source metadata.
-
-### Phase 5: Rendering Hosts
-
-- Implement scene/frame adapters for thumbnails, previews, editor canvas, audience output, and stage output.
-- Add render cache keys based on content/resource/theme/token stamps and render intent.
-- Add diagnostics for unsupported effects, missing dependencies, frame apply failures, and timing degradation.
-
-### Phase 6: Output Windows and Endpoint Bindings
-
-- Implement display discovery, machine-local endpoint bindings, output window controllers, display change reconciliation, and endpoint health.
-- Keep logical screens and Looks portable; only concrete endpoint bindings are machine-local.
-- Add integration tests for display connect/disconnect, remap, missing endpoint, and frame apply.
-
-### Phase 7: Media, Audio, Live Video, and Capture
-
-- Add AVFoundation media playback, Core Audio routing, live video input discovery, camera/microphone permissions, marker feedback, and player diagnostics.
-- Add capture, recording, streaming, Syphon-like, NDI, SDI, and RTMP/Resi-like adapters as endpoint or capture consumers of resolved frames.
-- Keep capture and transport health in diagnostics with runtime-provided recovery actions.
-
-### Phase 8: Advanced Parity and Hardening
-
-- Add richer Editor/Reflow/Theme workflows, generated scripture/song imports, Planning Center-style plans, MultiTracks/SongSelect/ProContent integrations, macros, timelines, timecode, calendar scheduling, Remote/Control APIs, Network Link, Stream Deck, MIDI, and DMX.
-- Harden packaging, sync, migration, audit, repair, sandbox behavior, signing, notarization, upgrade, and support package generation.
-- Remove any temporary host-specific render/live-state shortcuts introduced during bootstrap.
-
-## Open Gaps to Track
-
-- Runtime strategy: embedded shared core versus Swift implementation with generated contracts and conformance tests.
-- Renderer default: Core Animation-first with Metal escape hatches versus Metal-first with native hosting for controls.
-- Minimum macOS version and corresponding SwiftUI Observation, ScreenCaptureKit, display/HDR, and sandbox behavior support.
-- Initial transport scope: local displays only, then Syphon/NDI/SDI/RTMP/Resi-like integrations.
-- Distribution strategy: Mac App Store sandbox-first, Developer ID direct-first, or both from the start.
-- Fixture strategy for large media, live video, pro hardware, network transports, and signing/notarization checks.
-
 ## References Used
 
 - [`README.md`](../README.md)
 - [`target-architecture.md`](../target-architecture.md)
 - [`backend-application.md`](../backend-application.md)
 - [`content-management.md`](../content-management.md)
-- [`rendering-engine-replacement.md`](../rendering-engine-replacement.md)
 - [`native-hosts.md`](../native-hosts.md)
 - [`file-access-and-cache-resilience.md`](../file-access-and-cache-resilience.md)
 - [`macos-native-app.md`](macos-native-app.md)

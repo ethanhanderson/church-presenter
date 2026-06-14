@@ -8,6 +8,8 @@ using Microsoft.UI.Xaml;
 
 using Windows.Storage.Pickers;
 
+using ChurchPresenter.Services.Pipeline;
+
 namespace ChurchPresenter.ViewModels;
 
 /// <summary>Application navigation and startup state for the main window chrome.</summary>
@@ -18,7 +20,7 @@ public partial class AppNavigationViewModel : ObservableObject
     private readonly ICpresDocumentService _cpres;
     private readonly IMonitorService _monitors;
     private readonly IOutputWindowService _outputWindows;
-    private readonly IPlaybackEngine _live;
+    private readonly IOutputTargetService _outputTargets;
     private readonly IContentDirectoryService _content;
     private readonly IWorkspaceService _workspace;
     private readonly IContentStartupMaintenanceService _contentStartupMaintenance;
@@ -30,7 +32,7 @@ public partial class AppNavigationViewModel : ObservableObject
         ICpresDocumentService cpres,
         IMonitorService monitors,
         IOutputWindowService outputWindows,
-        IPlaybackEngine live,
+        IOutputTargetService outputTargets,
         IContentDirectoryService content,
         IWorkspaceService workspace,
         IContentStartupMaintenanceService contentStartupMaintenance)
@@ -40,7 +42,7 @@ public partial class AppNavigationViewModel : ObservableObject
         _cpres = cpres;
         _monitors = monitors;
         _outputWindows = outputWindows;
-        _live = live;
+        _outputTargets = outputTargets;
         _content = content;
         _workspace = workspace;
         _contentStartupMaintenance = contentStartupMaintenance;
@@ -114,18 +116,18 @@ public partial class AppNavigationViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ApplyAudienceOutput()
+    private async Task ApplyAudienceOutput()
     {
-        if (!_live.IsAudienceEnabled)
+        if (!_outputTargets.AudienceEnabled)
         {
             _outputWindows.CloseAll();
-            _live.SetAudienceEnabled(false);
+            await _outputTargets.SetAudienceEnabledAsync(false).ConfigureAwait(true);
             StatusMessage = "Audience output off";
             return;
         }
 
-        _outputWindows.OpenAudience();
-        _live.SetAudienceEnabled(true);
+        await _outputTargets.SetAudienceEnabledAsync(true).ConfigureAwait(true);
+        await _outputWindows.OpenAudienceAsync().ConfigureAwait(true);
         StatusMessage = "Audience output updated";
     }
 }

@@ -38,7 +38,7 @@ Remove noise before refactors:
 3. **Commented-out code** — Delete large stale blocks (verify with git history if unsure).
 4. **Commit separately:** `chore: remove dead code before maintenance pass`
 
-**Solution shape:** This repo may use **`.slnx`**; `dotnet format` might not load `.slnx`. Prefer formatting **per `.csproj`** (Core, Application, WinUI app, tests) — align with repo `AGENTS.md` / `Directory.Build.props`.
+**Solution shape:** This repo may use **`.slnx`**; `dotnet format` might not load `.slnx`. Prefer formatting **per `.csproj`** (Core, Application, WinUI app, tests) — align with repo `AGENTS.md` and `.editorconfig`.
 
 ## Phase 1: Automated scans
 
@@ -46,15 +46,23 @@ Detect context, then run scans (adjust paths to the solution root, e.g. `apps/wi
 
 ### Always (.NET)
 
-From repo root or project directory (PowerShell):
+From repo root or project directory (PowerShell), start with checks that do not require copying packaged WinUI `AppX` outputs when possible:
 
 ```powershell
-dotnet build -c Debug --no-restore 2>$null; dotnet restore
+dotnet restore
 dotnet format style --verify-no-changes
 dotnet format whitespace --verify-no-changes
-dotnet build /p:EnforceCodeStyleInBuild=true /p:TreatWarningsAsErrors=false
 dotnet package list --outdated
 ```
+
+For this repository, prefer targeted checks before the packaged WinUI build:
+
+```powershell
+dotnet test tests/ChurchPresenter.Core.Tests/ChurchPresenter.Core.Tests.csproj
+dotnet test tests/ChurchPresenter.App.Tests/ChurchPresenter.App.Tests.csproj
+```
+
+Run the packaged WinUI app build when the change touches UI/XAML/host packaging. Follow `.cursor/rules/windows-build-verification.mdc` and `.cursor/skills/winapp-mcp-winui/SKILL.md`. WinApp MCP only for functional verification or crashes — not routine visual/UI maintenance unless the user asks. Do not use `dotnet run` or Visual Studio F5 for verification.
 
 If SDK supports it:
 
@@ -97,7 +105,7 @@ Flag behavior-preserving cleanups common in WinUI 3:
 2. **Refactors** — Extract types from oversized files; deduplicate helpers flagged by jscpd/Sonar; consolidate trivial duplicates.
 3. **Flag for user** — Major package upgrades, unclear “unused but public” API, broad moves that churn imports.
 
-**Verify:** `dotnet build` (and `dotnet test` if tests exist) on affected configurations; for WinUI, follow repo rules (e.g. `-p:Platform=x64`).
+**Verify:** `dotnet test` and `dotnet build` on affected configurations. For WinUI, follow `.cursor/rules/windows-build-verification.mdc` and run the packaged app build with `-p:Platform=x64` after closing any running `ChurchPresenter` process. Launch the app only after all build/test gates are complete so the final running instance does not block later AppX copy steps.
 
 ## Output format
 
@@ -116,7 +124,7 @@ End with:
 ## Rules
 
 - Prefer **behavior-preserving** edits; treat behavior changes as out of scope unless explicitly requested.
-- Respect **EditorConfig**, **Directory.Build.props**, and repo analyzer settings.
+- Respect **EditorConfig** and repo analyzer settings in `.editorconfig`.
 - Prefer **small commits** per batch; never mix mass deletion and large refactors in one commit.
 - When unsure if code is truly dead (reflection, codegen, XAML `x:FieldModifier`, etc.), **flag** instead of deleting.
 
@@ -135,4 +143,4 @@ End with:
 - [Overview of .NET source code analysis](https://learn.microsoft.com/dotnet/fundamentals/code-analysis/overview)
 - [dotnet format](https://learn.microsoft.com/dotnet/core/tools/dotnet-format)
 - [dotnet package list](https://learn.microsoft.com/dotnet/core/tools/dotnet-package-list)
-- Project WinUI patterns: `.agents/skills/dotnet-winui/SKILL.md` (repo); desktop UI automation: `.cursor/skills/winapp-mcp-winui/SKILL.md`
+- Project WinUI patterns: `.agents/skills/dotnet-winui/SKILL.md` (repo); packaged verification (only workflow): `.cursor/skills/winapp-mcp-winui/SKILL.md`

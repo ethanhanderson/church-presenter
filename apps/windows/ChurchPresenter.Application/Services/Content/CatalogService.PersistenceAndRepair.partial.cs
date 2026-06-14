@@ -78,15 +78,22 @@ public sealed partial class CatalogService
 
     private async Task SaveLibraryIndexOrderAsync(IReadOnlyList<LibraryDto> libraries)
     {
+        var currentIndex = await _libraryRegistry.LoadIndexAsync().ConfigureAwait(false);
         var index = new DomainIndex
         {
-            Entries = libraries.Select(library => new DomainIndexEntry
+            Entries = libraries.Select(library =>
             {
-                Id = library.Id,
-                Name = library.Name,
-                Description = library.Description,
-                CreatedAt = library.CreatedAt ?? DateTimeOffset.UtcNow.ToString("O"),
-                UpdatedAt = library.UpdatedAt,
+                var existing = currentIndex.Entries.FirstOrDefault(entry =>
+                    string.Equals(entry.Id, library.Id, StringComparison.OrdinalIgnoreCase));
+                return new DomainIndexEntry
+                {
+                    Id = library.Id,
+                    Name = library.Name,
+                    Description = library.Description,
+                    CreatedAt = library.CreatedAt ?? existing?.CreatedAt ?? DateTimeOffset.UtcNow.ToString("O"),
+                    UpdatedAt = library.UpdatedAt,
+                    FolderName = existing?.FolderName,
+                };
             }).ToList(),
         };
 
@@ -95,15 +102,22 @@ public sealed partial class CatalogService
 
     private async Task SavePlaylistIndexOrderAsync(IReadOnlyList<PlaylistDto> playlists)
     {
+        var currentIndex = await _playlistRegistry.LoadIndexAsync().ConfigureAwait(false);
         var index = new DomainIndex
         {
-            Entries = playlists.Select(playlist => new DomainIndexEntry
+            Entries = playlists.Select(playlist =>
             {
-                Id = playlist.Id,
-                Name = playlist.Name,
-                Description = playlist.Description,
-                CreatedAt = playlist.CreatedAt ?? DateTimeOffset.UtcNow.ToString("O"),
-                UpdatedAt = playlist.UpdatedAt,
+                var existing = currentIndex.Entries.FirstOrDefault(entry =>
+                    string.Equals(entry.Id, playlist.Id, StringComparison.OrdinalIgnoreCase));
+                return new DomainIndexEntry
+                {
+                    Id = playlist.Id,
+                    Name = playlist.Name,
+                    Description = playlist.Description,
+                    CreatedAt = playlist.CreatedAt ?? existing?.CreatedAt ?? DateTimeOffset.UtcNow.ToString("O"),
+                    UpdatedAt = playlist.UpdatedAt,
+                    FolderName = existing?.FolderName,
+                };
             }).ToList(),
         };
 
@@ -294,10 +308,10 @@ public sealed partial class CatalogService
             : manifest!.Title!;
 
         var destination = LooksLikeSongBundle(file)
-            ? _paths.GetSongPresentationPath(presentationId)
-            : _paths.GeneratePresentationPath(title, presentationId);
+            ? _paths.GetSongPresentationPath(title)
+            : _paths.GeneratePresentationPath(title);
 
-        return EnsureUniqueFilePath(destination, file);
+        return ContentNaming.EnsureUniqueFilePath(destination, file);
     }
 
     private PresentationManifestDto? ReadManifestOrNull(string file)
@@ -329,26 +343,6 @@ public sealed partial class CatalogService
             fullDirectory += Path.DirectorySeparatorChar;
 
         return fullPath.StartsWith(fullDirectory, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string EnsureUniqueFilePath(string desiredPath, string sourcePath)
-    {
-        var fullDesiredPath = Path.GetFullPath(desiredPath);
-        if (!File.Exists(fullDesiredPath) || string.Equals(Path.GetFullPath(sourcePath), fullDesiredPath, StringComparison.OrdinalIgnoreCase))
-            return fullDesiredPath;
-
-        var directory = Path.GetDirectoryName(fullDesiredPath)!;
-        var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fullDesiredPath);
-        var extension = Path.GetExtension(fullDesiredPath);
-        var counter = 2;
-        string candidate;
-        do
-        {
-            candidate = Path.Combine(directory, $"{fileNameWithoutExtension}_{counter}{extension}");
-            counter++;
-        } while (File.Exists(candidate));
-
-        return candidate;
     }
 
 }

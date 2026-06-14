@@ -19,7 +19,6 @@ ProPresenter's automation features let one operator coordinate slides, media, au
 - [DMX Devices](https://support.renewedvision.com/hc/en-us/articles/360059980973-Devices-DMX)
 - [Resi Streaming](https://support.renewedvision.com/hc/en-us/articles/360058942613-Setting-up-Resi-Streaming-in-ProPresenter)
 - [Operator workflows and automation](../operator-workflows/show-controls-and-recovery.md)
-- [Feature inventory](../feature-inventory.md)
 
 ## Shared Command Model
 

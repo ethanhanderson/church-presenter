@@ -1,9 +1,9 @@
 using System;
 
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
 
 namespace ChurchPresenter.Views;
 
@@ -29,6 +29,13 @@ public sealed partial class ReflowPage : Page
     {
         await ViewModel.InitializeAsync();
         SlidesList.SelectedItem = ViewModel.SelectedSlideItem;
+    }
+
+    /// <summary>Cancels in-flight preview/thumbnail GPU work before the shell frame swaps pages.</summary>
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        NavigationTeardown.TeardownCompositionSurfaces(this);
+        base.OnNavigatedFrom(e);
     }
 
     private void SlidesList_ItemClick(object sender, ItemClickEventArgs e)

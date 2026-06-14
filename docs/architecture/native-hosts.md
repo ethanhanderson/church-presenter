@@ -56,7 +56,7 @@ Host-side state should not include:
 
 ## Show Workflow
 
-The Show surface should compose these workflow models:
+The Show surface composes these workflow models:
 
 - service playlist and selected occurrence,
 - slide grid/deck and arrangement context,
@@ -68,6 +68,26 @@ The Show surface should compose these workflow models:
 - output/capture health,
 - stage controls and stage message entry.
 
+On Windows, Show is additionally the only **cached** top-level page and the deepest cue-pipeline integration point. Functional subsystems, render-session contracts, preview/thumbnail lifecycle, and the phased reorganization plan live in:
+
+- `docs/architecture/platforms/winui-native-app.md` — "Show workflow and functional subsystems"
+- `docs/architecture/platforms/winui-code-organization.md` — "Show feature organization"
+
+Subsystem summary (cross-platform product semantics; Windows-specific lifecycle in the platform doc):
+
+| Subsystem | Operator focus |
+|---|---|
+| Sidebar | Libraries/playlists tree, search, rename, drag/drop import and reorder |
+| Slide deck | Take-live, selection model, group footers, deck toolbar |
+| Browse stack | Multi-presentation browse, section headers, auto-advance |
+| Transitions | Global and per-item slide/media transitions and durations |
+| Media drawer | Catalog browse; click → media layer; drag → slide-linked actions |
+| Output preview & clears | Program preview, slide/media layer clears, clear groups |
+| Show Controls | Timers, messages, props, audio/stage controls |
+| Arrangements | Arrangement picker and grouping |
+| Thumbnails | Deck card previews (host cache; not live-state) |
+| Workspace | Favorites, recents, toolbar defaults, pane layout persistence |
+
 The host should keep four concepts visually distinct:
 
 - selected operator item,
@@ -75,7 +95,19 @@ The host should keep four concepts visually distinct:
 - composed frame for each logical screen,
 - endpoint/device health.
 
-Slide click, media click, keyboard shortcut, macro button, and remote-equivalent host actions should dispatch commands with clear source metadata.
+Slide click, media click, keyboard shortcut, macro button, and remote-equivalent host actions should dispatch commands with clear source metadata — on Windows through `ICueDispatcher` and related application services, not by mutating host-local layer state.
+
+**Selection vs live:** slide-card selection (operator editing context) is host-side state. Live chrome (which slide is on the slide output layer) comes from the runtime live-session snapshot. Clearing the slide layer or deleting the final slide clears selection and keeps audience output blank.
+
+Media drawers should be responsive catalog views. The host should create stable card view models from runtime media read models immediately, before thumbnails finish. Thumbnail, duration, readiness, and health fields update in place as background services report progress. A drawer open event may raise preparation priority for visible cards, but card creation, media discovery, and live-take readiness must not depend on the drawer remaining open.
+
+### Live-Status Control Stability
+
+Operator controls that indicate live output state should be visually stable across runtime refreshes. The host should treat clear buttons, transport lane selectors, output health chips, and similar controls as stable command affordances whose visible status is bound to runtime read-model properties.
+
+For clear buttons, the active visual state means "one of this action's target layers currently has live content." It should not be derived from selection, focus, recent command dispatch, page refresh, or output-host apply events. If the runtime publishes the same clear-action definitions with different live flags, the host should update those flags in place; it should not remove and recreate buttons, swap duplicate active/inactive controls, or reset focus/hover state.
+
+Collection rebuilds are appropriate only when the set of available actions changes: a clear group is added, removed, reordered, renamed, retinted, or retargeted. Per-layer live/cleared status belongs in item state. This keeps ProPresenter-style clear/recovery controls trustworthy while slides, media, announcements, props, messages, audio, and live video continue independently.
 
 ## Editor, Reflow, and Themes
 
@@ -98,17 +130,24 @@ Theme hosts should manage reusable templates and variants. They should not bake 
 
 ## Output Hosts
 
-Output hosts apply resolved frames.
+Output hosts apply resolved frames produced by the unified output pipeline (see `docs/architecture/target-architecture.md` and `docs/architecture/backend-application.md`).
 
 Responsibilities:
 
 - create/position native windows or surfaces,
 - bind logical screens to concrete endpoints,
-- apply frame diffs,
-- host media player surfaces,
-- apply layer transitions/build descriptors,
-- report host feedback,
-- handle platform display lifecycle,
+- keep local output window identity stable while the same endpoint remains enabled,
+- reconcile display polling, hot-plug, focus, and bounds changes idempotently so unchanged targets do not reattach content or reapply frames,
+- paint a screen fallback/background behind the layer stack so cleared layers reveal a known screen color instead of the desktop or an uninitialized surface,
+- maintain persistent per-layer host surfaces (one per layer kind per screen) and apply per-slot diffs only,
+- host media player surfaces and bind them to the runtime's playback coordinator,
+- render operator previews, multiviews, and diagnostics snapshots from the same resolved frames/player identities as audience and stage output,
+- treat media thumbnails/posters as progressive cache outputs and never as authoritative visibility state for media items,
+- apply layer transitions/build descriptors using the platform's composition stack (no manual frame loops for crossfades),
+- run gapless looping via the platform's native construct, never seek-to-zero,
+- gate first-frame visibility on the platform's "ready to render" signal,
+- report host feedback (health, frame timing, dropped frames, decoder errors),
+- handle platform display lifecycle, hot-plug, and DPI/refresh changes,
 - support fullscreen/presentation modes.
 
 Restrictions:
@@ -118,7 +157,43 @@ Restrictions:
 - do not inspect presentation files,
 - do not clear layers locally,
 - do not derive stage layouts from audience screens,
-- do not fork capture rendering.
+- do not fork capture rendering,
+- do not create independent preview-only media players that can drift from audience transport state,
+- do not reorder, hide, or substitute layer slots based on host opinion.
+- do not treat display-poll ticks, focus restoration, or unchanged bounds as content reload events.
+
+### Output Window Stability
+
+Output windows are endpoint bindings, not render payloads. Once a local display endpoint is enabled, the host should keep its native window, root renderer, and per-layer surfaces warm until the endpoint is disabled, remapped, closed, or destroyed. A periodic monitor poll or platform display notification should compare the requested logical target with the active window binding before doing any work. If `ScreenId`, `EndpointId`, display identity, bounds, scale, and presentation mode are unchanged, the host should leave the content tree attached and report no semantic change to the renderer.
+
+This preserves the ProPresenter-style separation documented in `docs/reference/propresenter/output-system/mental-model.md`: the operator changes content, layer, screen, or output mapping deliberately. A platform host refresh is not a new content decision and must not restart media, rebuild slots, clear layers, or expose windows behind the output.
+
+### Preview and Transport Surfaces
+
+The operator preview is a view of a resolved logical screen, not a separate output engine. If the audience window receives screen `Main` with Slide and Media layers, the preview for `Main` should render the same layer payloads, routing, transition state, clear state, and playback position. Differences are allowed only for scale, chrome, diagnostic overlays, audio muting policy, and interaction affordances.
+
+On Windows, the operator preview uses a **preview-sized** `LayerStackHost` rasterized at the preview card's layout pixels (not a downscaled mirror of the full-resolution canonical surface). Audience and stage output windows mirror the canonical native-resolution render via `GetScreenSurface`. Both paths share the same pipeline frame apply and media slot bindings; only the output pixel dimensions differ.
+
+Transport controls are command affordances over runtime transport read models. The host may present tabs or segmented controls for presentation/media, audio, and announcement playback, but the displayed cue name, enabled state, playing state, position, duration, and markers must come from the runtime lane snapshot. Host-local media elements, preview controls, or selected-item state are never the source of truth for whether a layer is playing.
+
+### Host Adapter Contract
+
+Host adapters expose a single, narrow interface to the runtime per output target:
+
+- `ApplyFrame(AudienceFrameSet)` and `ApplyFrame(StageFrameSet)` — apply diffs against persistent per-layer surfaces.
+- `EnsureSurfaces(ScreenConfiguration)` — create or reconcile per-screen container/layer surfaces.
+- `BindPlayer(PlayerHandle, LayerSlotId)` — attach a runtime-owned player to a host surface.
+- `RaiseHealth(HostHealthEvent)` — surface ready state, dropped frames, decoder errors, and recovery hints.
+- `Shutdown(Reason)` — tear down surfaces and players deterministically.
+
+Adapters must:
+
+- pre-allocate hidden back surfaces per layer slot so transitions never wait on surface creation,
+- keep the active prepared cue's resources retained while the slot is live,
+- apply payload swaps atomically per slot (the host never shows a half-applied diff), and
+- never block the runtime command bus thread on host work; long operations report progress via `RaiseHealth`.
+
+Concrete platform mappings (Win2D/Composition/MediaPlayer on Windows; CALayer/CAMetalLayer/AVPlayer on macOS) live in the platform docs and must not leak through the adapter contract.
 
 ## Settings and Diagnostics Surfaces
 

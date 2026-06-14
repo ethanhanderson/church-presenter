@@ -1,11 +1,11 @@
 using System;
 using System.Threading.Tasks;
 
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Navigation;
 
 namespace ChurchPresenter.Views;
 
@@ -32,6 +32,38 @@ public sealed partial class EditPage : Page
         await ViewModel.InitializeAsync();
         SlidesList.SelectedItem = ViewModel.SelectedSlide;
         LayersList.SelectedItem = ViewModel.SelectedLayer;
+        ShowInspectorPanel("presentation");
+    }
+
+    private void InspectorSelectorBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        if (sender.SelectedItem is not SelectorBarItem item
+            || item.Tag is not string tag)
+        {
+            return;
+        }
+
+        ShowInspectorPanel(tag);
+    }
+
+    private void ShowInspectorPanel(string tag)
+    {
+        PresentationInspectorPanel.Visibility = string.Equals(tag, "presentation", StringComparison.Ordinal)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        LayersInspectorPanel.Visibility = string.Equals(tag, "layers", StringComparison.Ordinal)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        PropertiesInspectorPanel.Visibility = string.Equals(tag, "properties", StringComparison.Ordinal)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    /// <summary>Cancels in-flight preview/thumbnail GPU work before the shell frame swaps pages.</summary>
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        NavigationTeardown.TeardownCompositionSurfaces(this);
+        base.OnNavigatedFrom(e);
     }
 
     private void SlidesList_ItemClick(object sender, ItemClickEventArgs e)
@@ -50,6 +82,8 @@ public sealed partial class EditPage : Page
         {
             LayersList.SelectedItem = layer;
             ViewModel.SelectLayerById(layer.Id);
+            ShowInspectorPanel("properties");
+            PropertiesInspectorItem.IsSelected = true;
         }
     }
 

@@ -7,7 +7,7 @@ namespace ChurchPresenter.Views;
 
 internal static class ContentDialogSetup
 {
-    public static T ConfigureForPage<T>(this T dialog, Page owner)
+    public static T ConfigureForPage<T>(this T dialog, FrameworkElement owner)
         where T : ContentDialog
     {
         ArgumentNullException.ThrowIfNull(dialog);

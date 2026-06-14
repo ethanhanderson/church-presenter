@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using ChurchPresenter.App.Tests.Reference;
 using ChurchPresenter.App.Tests.TestSupport;
 using ChurchPresenter.Core.Cpres;
 
@@ -13,6 +14,7 @@ namespace ChurchPresenter.App.Tests.Services.Content;
 /// Catalog load/save: structured registries under <c>Libraries/</c> and <c>Playlists/</c> are canonical;
 /// legacy aggregate JSON is migration-only and is not written by <see cref="CatalogService.SaveAsync"/>.
 /// </summary>
+[ReferenceArea(ReferenceAreas.ContentManagement)]
 public sealed class CatalogServiceTests
 {
     [Fact]
@@ -37,11 +39,9 @@ public sealed class CatalogServiceTests
         svc.Catalog.Libraries[0].Id.Should().Be("local-library");
         svc.Catalog.Libraries[0].Presentations.Should().ContainSingle(p => p.Title == "Fixture");
         File.Exists(paths.Object.GetLibrariesIndexPath()).Should().BeTrue();
-        File.Exists(paths.Object.GetLibraryManifestPath("local-library")).Should().BeTrue();
+        File.Exists(paths.Object.GetLibraryManifestPath("Library")).Should().BeTrue();
         File.Exists(paths.Object.GetLibrariesJsonPath()).Should().BeFalse("legacy aggregate is not written after registry migration");
-        // On Windows, legacy "libraries/" and canonical "Libraries/" resolve to the same directory;
-        // the registry may create subfolders like local-library/ there.
-        Directory.Exists(paths.Object.GetLibraryRootDirectory("local-library")).Should().BeTrue();
+        Directory.Exists(paths.Object.GetLibraryRootDirectory("Library")).Should().BeTrue();
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class CatalogServiceTests
 
         svc.Catalog.Libraries.Should().ContainSingle(library => library.Id == "library-1");
         File.Exists(paths.Object.GetLibrariesIndexPath()).Should().BeTrue();
-        File.Exists(paths.Object.GetLibraryManifestPath("library-1")).Should().BeTrue();
+        File.Exists(paths.Object.GetLibraryManifestPath("Songs")).Should().BeTrue();
     }
 
     [Fact]
@@ -338,7 +338,7 @@ public sealed class CatalogServiceTests
 
         File.Exists(paths.Object.GetLibrariesIndexPath()).Should().BeTrue();
         File.Exists(paths.Object.GetPlaylistsIndexPath()).Should().BeTrue();
-        File.ReadAllText(paths.Object.GetLibraryManifestPath("main")).Should().Contain("\"name\": \"Main\"");
-        File.ReadAllText(paths.Object.GetPlaylistManifestPath("sunday")).Should().Contain("\"name\": \"Sunday\"");
+        File.ReadAllText(paths.Object.GetLibraryManifestPath("Main")).Should().Contain("\"name\": \"Main\"");
+        File.ReadAllText(paths.Object.GetPlaylistManifestPath("Sunday")).Should().Contain("\"name\": \"Sunday\"");
     }
 }

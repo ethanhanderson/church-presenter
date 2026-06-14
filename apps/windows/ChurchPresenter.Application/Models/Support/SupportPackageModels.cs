@@ -23,6 +23,7 @@ public enum PackageCopyRequirementKind
     None,
     CopyPresentationBundle,
     CopyEmbeddedMediaPayload,
+    CopyEmbeddedFontPayload,
     CopyReferencedMediaPayload,
 }
 
@@ -88,6 +89,18 @@ public sealed class SupportPackageExportOptions
 public sealed class SupportPackageImportOptions
 {
     public bool AllowDestructiveReplace { get; init; }
+}
+
+/// <summary>
+/// Options controlling collection package export.
+/// </summary>
+public sealed class CollectionPackageExportOptions
+{
+    public bool IncludeMedia { get; init; } = true;
+
+    public bool IncludeFonts { get; init; } = true;
+
+    public bool IncludeEmbeddedThemes { get; init; } = true;
 }
 
 /// <summary>

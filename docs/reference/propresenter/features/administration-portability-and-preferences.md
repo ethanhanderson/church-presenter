@@ -17,7 +17,6 @@ ProPresenter is not only a live rendering engine. It has account/seat administra
 - [Connecting to ProPresenter Control](https://support.renewedvision.com/hc/en-us/articles/6024791423763-Connecting-to-ProPresenter-Control)
 - [Library and show management](../library-show-management/libraries-playlists-integrations.md)
 - [Sources](../output-system/sources.md)
-- [Feature inventory](../feature-inventory.md)
 
 ## Seats, Activation, and Show Building
 

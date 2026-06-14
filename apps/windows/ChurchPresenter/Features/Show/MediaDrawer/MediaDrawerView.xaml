@@ -1,0 +1,1036 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="ChurchPresenter.Features.Show.MediaDrawer.MediaDrawerView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="using:ChurchPresenter.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:ChurchPresenter.ViewModels"
+    xmlns:models="using:ChurchPresenter.Models.Media"
+    xmlns:windowsui="using:Windows.UI"
+    x:Name="MediaDrawerRoot"
+    mc:Ignorable="d"
+    Background="Transparent">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="ShowChromeDividerBrush" Color="#1A000000" />
+                    <SolidColorBrush x:Key="ShowOutputPanelResizeHoverBrush" Color="#66000000" />
+                    <windowsui:Color x:Key="ShowLayerAcrylicTintColor">#FFFFFFFF</windowsui:Color>
+                    <windowsui:Color x:Key="ShowLayerAcrylicFallbackColor">#FFEDEDED</windowsui:Color>
+                    <windowsui:Color x:Key="ShowCardAcrylicTintColor">#FFFFFFFF</windowsui:Color>
+                    <windowsui:Color x:Key="ShowCardAcrylicFallbackColor">#FFF2F2F2</windowsui:Color>
+                    <AcrylicBrush x:Key="ShowBrowseDeckHeaderAcrylicBrush" FallbackColor="{StaticResource ShowLayerAcrylicFallbackColor}" TintColor="{StaticResource ShowLayerAcrylicTintColor}" TintLuminosityOpacity="0.88" TintOpacity="0.78" />
+                    <AcrylicBrush x:Key="ShowMediaCardBackgroundAcrylicBrush" FallbackColor="{StaticResource ShowCardAcrylicFallbackColor}" TintColor="{StaticResource ShowCardAcrylicTintColor}" TintLuminosityOpacity="0.92" TintOpacity="0.88" />
+                    <AcrylicBrush x:Key="ShowMediaCardFooterAcrylicBrush" FallbackColor="{StaticResource ShowLayerAcrylicFallbackColor}" TintColor="{StaticResource ShowLayerAcrylicTintColor}" TintLuminosityOpacity="0.88" TintOpacity="0.78" />
+                    <AcrylicBrush x:Key="ShowMediaDurationBadgeAcrylicBrush" FallbackColor="#CCFFFFFF" TintColor="#FFFFFFFF" TintLuminosityOpacity="0.7" TintOpacity="0.48" />
+                    <AcrylicBrush x:Key="ShowMediaCardBorderAcrylicBrush" FallbackColor="#33000000" TintColor="{StaticResource ShowCardAcrylicTintColor}" TintLuminosityOpacity="0.65" TintOpacity="0.48" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="ShowChromeDividerBrush" Color="#1A000000" />
+                    <SolidColorBrush x:Key="ShowOutputPanelResizeHoverBrush" Color="#66000000" />
+                    <windowsui:Color x:Key="ShowLayerAcrylicTintColor">#FFFFFFFF</windowsui:Color>
+                    <windowsui:Color x:Key="ShowLayerAcrylicFallbackColor">#FFEDEDED</windowsui:Color>
+                    <windowsui:Color x:Key="ShowCardAcrylicTintColor">#FFFFFFFF</windowsui:Color>
+                    <windowsui:Color x:Key="ShowCardAcrylicFallbackColor">#FFF2F2F2</windowsui:Color>
+                    <AcrylicBrush x:Key="ShowBrowseDeckHeaderAcrylicBrush" FallbackColor="{StaticResource ShowLayerAcrylicFallbackColor}" TintColor="{StaticResource ShowLayerAcrylicTintColor}" TintLuminosityOpacity="0.88" TintOpacity="0.78" />
+                    <AcrylicBrush x:Key="ShowMediaCardBackgroundAcrylicBrush" FallbackColor="{StaticResource ShowCardAcrylicFallbackColor}" TintColor="{StaticResource ShowCardAcrylicTintColor}" TintLuminosityOpacity="0.92" TintOpacity="0.88" />
+                    <AcrylicBrush x:Key="ShowMediaCardFooterAcrylicBrush" FallbackColor="{StaticResource ShowLayerAcrylicFallbackColor}" TintColor="{StaticResource ShowLayerAcrylicTintColor}" TintLuminosityOpacity="0.88" TintOpacity="0.78" />
+                    <AcrylicBrush x:Key="ShowMediaDurationBadgeAcrylicBrush" FallbackColor="#CCFFFFFF" TintColor="#FFFFFFFF" TintLuminosityOpacity="0.7" TintOpacity="0.48" />
+                    <AcrylicBrush x:Key="ShowMediaCardBorderAcrylicBrush" FallbackColor="#33000000" TintColor="{StaticResource ShowCardAcrylicTintColor}" TintLuminosityOpacity="0.65" TintOpacity="0.48" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="ShowChromeDividerBrush" Color="#0FFFFFFF" />
+                    <SolidColorBrush x:Key="ShowOutputPanelResizeHoverBrush" Color="#66FFFFFF" />
+                    <windowsui:Color x:Key="ShowLayerAcrylicTintColor">#FF323232</windowsui:Color>
+                    <windowsui:Color x:Key="ShowLayerAcrylicFallbackColor">#FF1E1E1E</windowsui:Color>
+                    <windowsui:Color x:Key="ShowCardAcrylicTintColor">#FF2D2D2D</windowsui:Color>
+                    <windowsui:Color x:Key="ShowCardAcrylicFallbackColor">#FF1E1E1E</windowsui:Color>
+                    <AcrylicBrush x:Key="ShowBrowseDeckHeaderAcrylicBrush" FallbackColor="{StaticResource ShowLayerAcrylicFallbackColor}" TintColor="{StaticResource ShowLayerAcrylicTintColor}" TintLuminosityOpacity="0.88" TintOpacity="0.78" />
+                    <AcrylicBrush x:Key="ShowMediaCardBackgroundAcrylicBrush" FallbackColor="{StaticResource ShowCardAcrylicFallbackColor}" TintColor="{StaticResource ShowCardAcrylicTintColor}" TintLuminosityOpacity="0.92" TintOpacity="0.88" />
+                    <AcrylicBrush x:Key="ShowMediaCardFooterAcrylicBrush" FallbackColor="{StaticResource ShowLayerAcrylicFallbackColor}" TintColor="{StaticResource ShowLayerAcrylicTintColor}" TintLuminosityOpacity="0.88" TintOpacity="0.78" />
+                    <AcrylicBrush x:Key="ShowMediaDurationBadgeAcrylicBrush" FallbackColor="#B3000000" TintColor="#FF000000" TintLuminosityOpacity="0.65" TintOpacity="0.52" />
+                    <AcrylicBrush x:Key="ShowMediaCardBorderAcrylicBrush" FallbackColor="#33FFFFFF" TintColor="{StaticResource ShowCardAcrylicTintColor}" TintLuminosityOpacity="0.55" TintOpacity="0.42" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+            <CornerRadius x:Key="ShowPanelCardCornerRadius">8</CornerRadius>
+            <converters:BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+            <converters:MillisecondsToSecondsLabelConverter x:Key="MsToSecondsLabelConverter" />
+            <Style x:Key="ShowDeckViewModeSegmentButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="VerticalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                <Setter Property="UseSystemFocusVisuals" Value="True" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="RootBorder" Background="Transparent" CornerRadius="{TemplateBinding CornerRadius}">
+                                <Grid>
+                                    <Border x:Name="HoverBackground" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" CornerRadius="{TemplateBinding CornerRadius}" />
+                                    <ContentPresenter Padding="{TemplateBinding Padding}" HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" Content="{TemplateBinding Content}" />
+                                </Grid>
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="PointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="HoverBackground.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="HoverBackground.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Disabled">
+                                            <VisualState.Setters>
+                                                <Setter Target="RootBorder.Opacity" Value="0.5" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="ShowSidebarSectionTitleTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+            </Style>
+            <Style x:Key="ShowSidebarSectionToolbarButtonStyle" BasedOn="{StaticResource DefaultButtonStyle}" TargetType="Button">
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="MinHeight" Value="28" />
+                <Setter Property="Padding" Value="8,4" />
+                <Setter Property="CornerRadius" Value="4" />
+            </Style>
+        <MenuFlyout x:Key="MediaItemContextMenuFlyout" Opening="MediaItemContextMenu_Opening">
+            <MenuFlyoutItem IsEnabled="False" Text="Inspector..." />
+            <MenuFlyoutItem Click="MediaItemEditTransition_Click" Text="Transitions..." />
+            <MenuFlyoutSubItem Text="Behavior">
+                <MenuFlyoutItem Click="MediaCueTarget_Click" Tag="mediaUnderlay" Text="Media Underlay" />
+                <MenuFlyoutItem Click="MediaCueTarget_Click" Tag="mediaOverlay" Text="Media Overlay" />
+                <MenuFlyoutItem Click="MediaCueTarget_Click" Tag="audio" Text="Audio" />
+            </MenuFlyoutSubItem>
+            <MenuFlyoutSubItem Text="Scaling">
+                <MenuFlyoutItem Click="MediaCueFit_Click" Tag="cover" Text="Cover" />
+                <MenuFlyoutItem Click="MediaCueFit_Click" Tag="contain" Text="Contain" />
+                <MenuFlyoutItem Click="MediaCueFit_Click" Tag="fill" Text="Fill" />
+                <MenuFlyoutItem Click="MediaCueFit_Click" Tag="none" Text="None" />
+            </MenuFlyoutSubItem>
+            <MenuFlyoutSubItem Text="Playback Behavior">
+                <ToggleMenuFlyoutItem Click="MediaCueAutoplay_Click" Text="Autoplay" />
+                <ToggleMenuFlyoutItem Click="MediaCueMuted_Click" Text="Muted" />
+            </MenuFlyoutSubItem>
+            <MenuFlyoutSubItem Text="Loop Behavior">
+                <ToggleMenuFlyoutItem Click="MediaCueLoop_Click" Text="Loop" />
+            </MenuFlyoutSubItem>
+            <MenuFlyoutSubItem IsEnabled="False" Text="End Behavior" />
+            <MenuFlyoutSubItem IsEnabled="False" Text="Next Cue" />
+            <MenuFlyoutSeparator />
+            <MenuFlyoutItem IsEnabled="False" Text="Cut" />
+            <MenuFlyoutItem IsEnabled="False" Text="Copy" />
+            <MenuFlyoutItem IsEnabled="False" Text="Paste" />
+            <MenuFlyoutItem Click="MediaItemDuplicate_Click" Text="Duplicate" />
+            <MenuFlyoutItem Click="MediaItemRename_Click" Text="Rename" />
+            <MenuFlyoutItem Click="MediaItemDelete_Click" Text="Delete" />
+            <MenuFlyoutSeparator />
+            <MenuFlyoutItem Click="MediaItemOpenFileLocation_Click" Text="Open File Location" />
+            <MenuFlyoutSubItem IsEnabled="False" Text="Clean Up By" />
+        </MenuFlyout>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <Grid>
+        <Border
+            x:Name="MediaPanelChromeBorder"
+            Grid.Column="0"
+            Grid.Row="1"
+            Background="Transparent"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid
+                    x:Name="MediaPanelContentGrid"
+                    ColumnDefinitions="282,*"
+                    Background="Transparent">
+
+                    <!-- Col 0: playlist sidebar (transparent; MainWindow shell shows through). -->
+                    <Grid
+                        Grid.Column="0"
+                        RowDefinitions="Auto,*"
+                        Background="Transparent"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="0,0,1,0">
+                        <!-- Header: section title + new playlist (match main Show sidebar section header) -->
+                        <Border
+                            Grid.Row="0"
+                            Padding="10,8,10,6"
+                            Background="Transparent">
+                            <Grid ColumnDefinitions="*,Auto" Padding="2,0,2,2">
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource ShowSidebarSectionTitleTextStyle}"
+                                    Text="Media" />
+                                <StackPanel
+                                    Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    Spacing="4">
+                                    <Button
+                                        AutomationProperties.Name="New media playlist"
+                                        Click="AddMediaPlaylist_Click"
+                                        Style="{StaticResource ShowSidebarSectionToolbarButtonStyle}"
+                                        ToolTipService.ToolTip="New playlist">
+                                        <FontIcon
+                                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                            FontSize="14"
+                                            Glyph="&#xE710;" />
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <!-- Playlist list -->
+                        <ScrollViewer
+                            Grid.Row="1"
+                            Padding="0"
+                            Background="Transparent"
+                            VerticalScrollBarVisibility="Auto">
+                            <StackPanel Padding="10,6,10,6" Spacing="2">
+                                <!-- "All Media" entry -->
+                                <Button
+                                    x:Name="MediaPlaylistAllButton"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left"
+                                    Padding="8,6"
+                                    AutomationProperties.Name="All media"
+                                    Click="MediaPlaylistAll_Click"
+                                    Style="{StaticResource SubtleButtonStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon
+                                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                            FontSize="12"
+                                            Glyph="&#xE93C;" />
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="12"
+                                            Text="All Media"
+                                            TextTrimming="CharacterEllipsis"
+                                            TextWrapping="NoWrap" />
+                                    </StackPanel>
+                                </Button>
+                                <!-- Playlist entries -->
+                                <ItemsControl
+                                    x:Name="MediaPlaylistItemsControl"
+                                    ItemsSource="{x:Bind ViewModel.MediaPlaylists, Mode=OneWay}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:MediaPlaylistManifest">
+                                            <Button
+                                                HorizontalAlignment="Stretch"
+                                                HorizontalContentAlignment="Left"
+                                                Padding="8,6"
+                                                Click="MediaPlaylistItem_Click"
+                                                Style="{StaticResource SubtleButtonStyle}"
+                                                Tag="{x:Bind Id, Mode=OneTime}">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon
+                                                        FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                        FontSize="12"
+                                                        Glyph="&#xE93C;" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Text="{x:Bind Name, Mode=OneTime}"
+                                                        TextTrimming="CharacterEllipsis"
+                                                        TextWrapping="NoWrap" />
+                                                </StackPanel>
+                                                <Button.ContextFlyout>
+                                                    <MenuFlyout>
+                                                        <MenuFlyoutItem
+                                                            Click="RenameMediaPlaylist_Click"
+                                                            Tag="{x:Bind Id, Mode=OneTime}"
+                                                            Text="Rename" />
+                                                        <MenuFlyoutSeparator />
+                                                        <MenuFlyoutItem
+                                                            Click="DeleteMediaPlaylist_Click"
+                                                            Tag="{x:Bind Id, Mode=OneTime}"
+                                                            Text="Delete" />
+                                                    </MenuFlyout>
+                                                </Button.ContextFlyout>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <!-- Col 1: files browse — LayerFillColorDefaultBrush (same material as OutputPanelChromeBorder), not the playlist column. -->
+                    <Grid
+                        Grid.Column="1"
+                        RowDefinitions="Auto,*,Auto"
+                        Background="{ThemeResource LayerFillColorDefaultBrush}">
+
+                        <!-- Top toolbar: add media on the left, search on the right. -->
+                        <Border
+                            Grid.Row="0"
+                            Padding="0"
+                            Background="{ThemeResource ShowBrowseDeckHeaderAcrylicBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="0,0,0,1">
+                            <Grid
+                                Padding="8,5"
+                                ColumnDefinitions="Auto,*"
+                                ColumnSpacing="8">
+                                <Button
+                                    Grid.Column="0"
+                                    MinHeight="30"
+                                    Padding="8,0"
+                                    AutomationProperties.Name="Add media files"
+                                    Click="AddMediaFiles_Click"
+                                    Style="{StaticResource DefaultButtonStyle}"
+                                    ToolTipService.ToolTip="Add media files">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon
+                                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                            FontSize="14"
+                                            Glyph="&#xE710;" />
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            Text="Add media" />
+                                    </StackPanel>
+                                </Button>
+                                <AutoSuggestBox
+                                    Grid.Column="1"
+                                    Width="260"
+                                    MinWidth="180"
+                                    HorizontalAlignment="Right"
+                                    PlaceholderText="Search media..."
+                                    Text="{x:Bind ViewModel.MediaPanelSearchText, Mode=TwoWay}"
+                                    QueryIcon="Find" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Grid view: thumbnail-driven media cards. -->
+                        <ScrollViewer
+                            x:Name="MediaPanelGridScrollViewer"
+                            Grid.Row="1"
+                            Padding="8"
+                            VerticalScrollBarVisibility="Auto"
+                            Visibility="{x:Bind ViewModel.MediaPanelIsGridMode, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                            <ItemsRepeater
+                                x:Name="MediaPanelGridRepeater"
+                                ItemsSource="{x:Bind ViewModel.MediaPanelItems, Mode=OneWay}">
+                                <ItemsRepeater.Layout>
+                                    <UniformGridLayout
+                                        ItemsStretch="None"
+                                        MaximumRowsOrColumns="20"
+                                        MinColumnSpacing="10"
+                                        MinItemHeight="{x:Bind ViewModel.MediaPanelGridMinItemHeight, Mode=OneWay}"
+                                        MinItemWidth="{x:Bind ViewModel.MediaPanelGridMinItemWidth, Mode=OneWay}"
+                                        MinRowSpacing="10" />
+                                </ItemsRepeater.Layout>
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:MediaPanelItemViewModel">
+                                        <Border
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Top"
+                                            MinWidth="0"
+                                            MinHeight="0"
+                                            Padding="0"
+                                            AutomationProperties.Name="{x:Bind Name, Mode=OneTime}"
+                                            Background="Transparent"
+                                            CanDrag="True"
+                                            ContextRequested="MediaItem_ContextRequested"
+                                            DragStarting="MediaItem_DragStarting"
+                                            IsTabStop="False"
+                                            PointerEntered="MediaGridItem_PointerEntered"
+                                            Tag="{x:Bind Id, Mode=OneTime}"
+                                            Tapped="MediaGridItem_Tapped">
+                                            <Border
+                                                Width="{Binding ElementName=MediaDrawerRoot, Path=ViewModel.MediaPanelGridThumbnailWidth}"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Top"
+                                                Background="{ThemeResource ShowMediaCardBackgroundAcrylicBrush}"
+                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="{StaticResource ShowPanelCardCornerRadius}">
+                                                <Grid RowDefinitions="Auto,Auto">
+                                                    <Border
+                                                        x:Name="MediaGridThumbnailFrame"
+                                                        Grid.Row="0"
+                                                        Margin="4,4,4,0"
+                                                        Width="{Binding ElementName=MediaDrawerRoot, Path=ViewModel.MediaPanelGridThumbnailFrameWidth}"
+                                                        Height="{Binding ElementName=MediaDrawerRoot, Path=ViewModel.MediaPanelGridThumbnailFrameHeight}"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Top"
+                                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                        BorderBrush="{ThemeResource ShowMediaCardBorderAcrylicBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="5">
+                                                        <Grid>
+                                                            <Border
+                                                                HorizontalAlignment="Stretch"
+                                                                VerticalAlignment="Stretch"
+                                                                Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                                CornerRadius="4"
+                                                                Visibility="{x:Bind HasThumbnail, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert, Mode=OneWay}" />
+                                                            <Border
+                                                                HorizontalAlignment="Stretch"
+                                                                VerticalAlignment="Stretch"
+                                                                Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+                                                                CornerRadius="4"
+                                                                Visibility="{x:Bind HasThumbnail, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                                                                <Image
+                                                                    HorizontalAlignment="Stretch"
+                                                                    VerticalAlignment="Stretch"
+                                                                    Source="{x:Bind ThumbnailSource, Mode=OneWay}"
+                                                                    Stretch="UniformToFill" />
+                                                            </Border>
+                                                            <Border
+                                                                Margin="8"
+                                                                Padding="6,3"
+                                                                HorizontalAlignment="Left"
+                                                                VerticalAlignment="Top"
+                                                                Background="{ThemeResource ShowMediaDurationBadgeAcrylicBrush}"
+                                                                CornerRadius="4"
+                                                                Visibility="{x:Bind HasDurationLabel, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                                                                <TextBlock
+                                                                    FontSize="11"
+                                                                    FontWeight="SemiBold"
+                                                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                                    Text="{x:Bind DurationLabel, Mode=OneWay}"
+                                                                    TextWrapping="NoWrap" />
+                                                            </Border>
+                                                            <Viewbox
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"
+                                                                MaxWidth="56"
+                                                                MaxHeight="56"
+                                                                Stretch="Uniform"
+                                                                Visibility="{x:Bind HasThumbnail, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert, Mode=OneWay}">
+                                                                <FontIcon
+                                                                    FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                                    FontSize="128"
+                                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                                    Glyph="{x:Bind TypeGlyph, Mode=OneWay}" />
+                                                            </Viewbox>
+                                                        </Grid>
+                                                    </Border>
+                                                    <Border
+                                                        Grid.Row="1"
+                                                        Height="37"
+                                                        HorizontalAlignment="Stretch"
+                                                        Background="Transparent"
+                                                        BorderThickness="0">
+                                                        <TextBlock
+                                                            Margin="12,5,12,5"
+                                                            HorizontalAlignment="Stretch"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="13"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                            LineHeight="13"
+                                                            LineStackingStrategy="BlockLineHeight"
+                                                            MaxLines="1"
+                                                            Text="{x:Bind Name, Mode=OneWay}"
+                                                            TextAlignment="Left"
+                                                            TextTrimming="CharacterEllipsis"
+                                                            TextWrapping="NoWrap" />
+                                                    </Border>
+                                                </Grid>
+                                            </Border>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+                        </ScrollViewer>
+
+                        <!-- List view: table header + rows (index column has no header label; thumbnail, transition, name, path, duration, format). -->
+                        <Grid
+                            Grid.Row="1"
+                            RowDefinitions="Auto,*"
+                            Visibility="{x:Bind ViewModel.MediaPanelIsListMode, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                            <Border
+                                Grid.Row="0"
+                                Padding="4,6,12,6"
+                                Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="0,0,0,1">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <!-- Index: reserved header cell, no label (aligns with row numbers). -->
+                                        <ColumnDefinition Width="28" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="148" />
+                                        <ColumnDefinition Width="1.4*" MinWidth="120" />
+                                        <ColumnDefinition Width="2.2*" MinWidth="160" />
+                                        <ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="96" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border
+                                        Grid.Column="0"
+                                        MinWidth="28"
+                                        HorizontalAlignment="Stretch"
+                                        Background="Transparent" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Width="{x:Bind ViewModel.MediaPanelListThumbnailWidth, Mode=OneWay}"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        FontWeight="SemiBold"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="Thumbnail"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        FontWeight="SemiBold"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="Transition"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Grid.Column="3"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        FontWeight="SemiBold"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="Name"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Grid.Column="4"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        FontWeight="SemiBold"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="Path"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Grid.Column="5"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        FontWeight="SemiBold"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="Duration"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Grid.Column="6"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        FontWeight="SemiBold"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="Format"
+                                        TextTrimming="CharacterEllipsis" />
+                                </Grid>
+                            </Border>
+                            <ListView
+                                x:Name="MediaPanelListView"
+                                Grid.Row="1"
+                                IsItemClickEnabled="True"
+                                ItemClick="MediaPanelListView_ItemClick"
+                                ItemsSource="{x:Bind ViewModel.MediaPanelItems, Mode=OneWay}"
+                                KeyDown="MediaPanelListView_KeyDown"
+                                SelectionMode="Single">
+                                <ListView.ItemContainerStyle>
+                                    <Style BasedOn="{StaticResource DefaultListViewItemStyle}" TargetType="ListViewItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="Padding" Value="0" />
+                                        <Setter Property="MinHeight" Value="{Binding ElementName=MediaDrawerRoot, Path=ViewModel.MediaPanelListRowMinHeight}" />
+                                    </Style>
+                                </ListView.ItemContainerStyle>
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:MediaPanelItemViewModel">
+                                        <Grid
+                                            Padding="4,6,12,6"
+                                            HorizontalAlignment="Stretch"
+                                            Background="Transparent"
+                                            BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                                            BorderThickness="0,0,0,1"
+                                            CanDrag="True"
+                                            ColumnSpacing="8"
+                                            ContextRequested="MediaItem_ContextRequested"
+                                            DragStarting="MediaItem_DragStarting"
+                                            PointerEntered="MediaListItem_PointerEntered"
+                                            Tag="{x:Bind Id, Mode=OneTime}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="28" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="148" />
+                                                <ColumnDefinition Width="1.4*" MinWidth="120" />
+                                                <ColumnDefinition Width="2.2*" MinWidth="160" />
+                                                <ColumnDefinition Width="80" />
+                                                <ColumnDefinition Width="96" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                Grid.Column="0"
+                                                HorizontalAlignment="Stretch"
+                                                VerticalAlignment="Center"
+                                                FontSize="14"
+                                                FontWeight="SemiBold"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="{x:Bind DisplayIndex, Mode=OneWay}"
+                                                TextAlignment="Right" />
+                                            <Border
+                                                Grid.Column="1"
+                                                Height="{Binding ElementName=MediaDrawerRoot, Path=ViewModel.MediaPanelListThumbHeight}"
+                                                Width="{Binding ElementName=MediaDrawerRoot, Path=ViewModel.MediaPanelListThumbnailWidth}"
+                                                VerticalAlignment="Center"
+                                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                CornerRadius="4">
+                                                <Grid>
+                                                    <Border
+                                                        HorizontalAlignment="Stretch"
+                                                        VerticalAlignment="Stretch"
+                                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                                        Visibility="{x:Bind HasThumbnail, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert, Mode=OneWay}" />
+                                                    <Border
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Stretch"
+                                                        Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+                                                        Visibility="{x:Bind HasThumbnail, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                                                        <Image
+                                                            Height="{Binding ElementName=MediaDrawerRoot, Path=ViewModel.MediaPanelListThumbHeight}"
+                                                            Width="{Binding ElementName=MediaDrawerRoot, Path=ViewModel.MediaPanelListThumbnailWidth}"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            Source="{x:Bind ThumbnailSource, Mode=OneWay}"
+                                                            Stretch="Uniform" />
+                                                    </Border>
+                                                    <Viewbox
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        MaxWidth="22"
+                                                        MaxHeight="22"
+                                                        Stretch="Uniform"
+                                                        Visibility="{x:Bind HasThumbnail, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert, Mode=OneWay}">
+                                                        <FontIcon
+                                                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                            FontSize="128"
+                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                            Glyph="{x:Bind TypeGlyph, Mode=OneWay}" />
+                                                    </Viewbox>
+                                                </Grid>
+                                            </Border>
+                                            <StackPanel
+                                                Grid.Column="2"
+                                                MaxWidth="148"
+                                                VerticalAlignment="Center"
+                                                Orientation="Horizontal"
+                                                Spacing="8">
+                                                <FontIcon
+                                                    VerticalAlignment="Center"
+                                                    FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                    FontSize="14"
+                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                    Glyph="&#xE102;"
+                                                    ToolTipService.ToolTip="Per-file transition (see context menu)"
+                                                    Visibility="{x:Bind IsMediaTransitionExplicit, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    MaxWidth="126"
+                                                    FontSize="12"
+                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                    MaxLines="1"
+                                                    Text="{x:Bind MediaTableTransitionDisplay, Mode=OneWay}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    TextWrapping="NoWrap" />
+                                            </StackPanel>
+                                            <Grid Grid.Column="3" VerticalAlignment="Center">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="13"
+                                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                    IsTapEnabled="True"
+                                                    Text="{x:Bind Name, Mode=OneWay}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    TextWrapping="NoWrap"
+                                                    ToolTipService.ToolTip="Double-click to rename"
+                                                    DoubleTapped="MediaPanelListName_DoubleTapped"
+                                                    Visibility="{x:Bind IsNameEditMode, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert, Mode=OneWay}" />
+                                                <TextBox
+                                                    VerticalAlignment="Center"
+                                                    MinHeight="32"
+                                                    Padding="8,4"
+                                                    FontSize="13"
+                                                    LostFocus="MediaPanelListNameEdit_LostFocus"
+                                                    KeyDown="MediaPanelListNameEdit_KeyDown"
+                                                    Loaded="MediaPanelListNameEdit_Loaded"
+                                                    Text="{x:Bind NameEditDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    Visibility="{x:Bind IsNameEditMode, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                            </Grid>
+                                            <TextBlock
+                                                Grid.Column="4"
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="{x:Bind Path, Mode=OneTime}"
+                                                TextTrimming="CharacterEllipsis"
+                                                TextWrapping="NoWrap" />
+                                            <TextBlock
+                                                Grid.Column="5"
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="{x:Bind DurationTableLabel, Mode=OneWay}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <TextBlock
+                                                Grid.Column="6"
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="{x:Bind FormatLabel, Mode=OneWay}"
+                                                TextTrimming="CharacterEllipsis" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </Grid>
+
+                        <Border
+                            Grid.Row="2"
+                            Padding="0"
+                            Background="{ThemeResource ShowBrowseDeckHeaderAcrylicBrush}"
+                            BorderBrush="{ThemeResource ShowChromeDividerBrush}"
+                            BorderThickness="0,1,0,0">
+                            <Grid
+                                Padding="8,5"
+                                ColumnDefinitions="Auto,*,Auto"
+                                ColumnSpacing="12">
+                                <StackPanel
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal"
+                                    Spacing="6">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="Media"
+                                        Visibility="{x:Bind ViewModel.MediaPanelOpen, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert, Mode=OneWay}" />
+                                    <Border
+                                        MinHeight="30"
+                                        VerticalAlignment="Center"
+                                        Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                        <Grid ColumnDefinitions="*,Auto,*,Auto,*">
+                                            <Button
+                                                Grid.Column="0"
+                                                AutomationProperties.Name="Global media cut (drawer)"
+                                                Click="GlobalMediaCut_Click"
+                                                CornerRadius="4,0,0,4"
+                                                Style="{StaticResource ShowDeckViewModeSegmentButtonStyle}"
+                                                ToolTipService.ToolTip="Cut on media change">
+                                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                                    <Border
+                                                        HorizontalAlignment="Stretch"
+                                                        VerticalAlignment="Stretch"
+                                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                        CornerRadius="4,0,0,4"
+                                                        Visibility="{x:Bind ViewModel.GlobalMediaTransitionIsCut, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                                    <Grid
+                                                        Padding="10,6"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center">
+                                                        <TextBlock
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="12"
+                                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                            Text="Cut"
+                                                            Visibility="{x:Bind ViewModel.GlobalMediaTransitionIsCut, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert, Mode=OneWay}" />
+                                                        <TextBlock
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="12"
+                                                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                                            Text="Cut"
+                                                            Visibility="{x:Bind ViewModel.GlobalMediaTransitionIsCut, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                                    </Grid>
+                                                </Grid>
+                                            </Button>
+                                            <Border
+                                                Grid.Column="1"
+                                                Width="1"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Stretch"
+                                                Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+                                            <Button
+                                                Grid.Column="2"
+                                                AutomationProperties.Name="Global media dissolve (drawer)"
+                                                Click="GlobalMediaDissolve_Click"
+                                                CornerRadius="0"
+                                                Style="{StaticResource ShowDeckViewModeSegmentButtonStyle}"
+                                                ToolTipService.ToolTip="Dissolve on media change">
+                                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                                    <Border
+                                                        HorizontalAlignment="Stretch"
+                                                        VerticalAlignment="Stretch"
+                                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                        CornerRadius="0"
+                                                        Visibility="{x:Bind ViewModel.GlobalMediaTransitionIsDissolve, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                                    <Grid
+                                                        Padding="10,6"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center">
+                                                        <TextBlock
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="12"
+                                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                            Text="Dissolve"
+                                                            Visibility="{x:Bind ViewModel.GlobalMediaTransitionIsDissolve, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert, Mode=OneWay}" />
+                                                        <TextBlock
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="12"
+                                                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                                            Text="Dissolve"
+                                                            Visibility="{x:Bind ViewModel.GlobalMediaTransitionIsDissolve, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                                    </Grid>
+                                                </Grid>
+                                            </Button>
+                                            <Border
+                                                Grid.Column="3"
+                                                Width="1"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Stretch"
+                                                Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+                                            <Button
+                                                Grid.Column="4"
+                                                AutomationProperties.Name="Custom media transition (drawer)"
+                                                Click="GlobalMediaCustom_Click"
+                                                CornerRadius="0,4,4,0"
+                                                Style="{StaticResource ShowDeckViewModeSegmentButtonStyle}"
+                                                ToolTipService.ToolTip="Custom media transition">
+                                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                                    <Border
+                                                        HorizontalAlignment="Stretch"
+                                                        VerticalAlignment="Stretch"
+                                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                        CornerRadius="0,4,4,0"
+                                                        Visibility="{x:Bind ViewModel.GlobalMediaTransitionIsCustom, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                                    <Grid
+                                                        Padding="10,6"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center">
+                                                        <TextBlock
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="12"
+                                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                            Text="Custom"
+                                                            Visibility="{x:Bind ViewModel.GlobalMediaTransitionIsCustom, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert, Mode=OneWay}" />
+                                                        <TextBlock
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="12"
+                                                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                                            Text="Custom"
+                                                            Visibility="{x:Bind ViewModel.GlobalMediaTransitionIsCustom, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                                    </Grid>
+                                                </Grid>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                    <Grid
+                                        VerticalAlignment="Center"
+                                        ColumnDefinitions="Auto,Auto"
+                                        ColumnSpacing="6"
+                                        Visibility="{x:Bind ViewModel.GlobalMediaTransitionIsDissolve, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+                                        <Slider
+                                            Grid.Column="0"
+                                            Width="100"
+                                            VerticalAlignment="Center"
+                                            Maximum="3000"
+                                            Minimum="50"
+                                            SnapsTo="StepValues"
+                                            StepFrequency="100"
+                                            ToolTipService.ToolTip="Media dissolve duration (ms)"
+                                            Value="{x:Bind ViewModel.GlobalMediaDissolveDurationMs, Mode=TwoWay}" />
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            VerticalAlignment="Center"
+                                            MinWidth="40"
+                                            FontSize="11"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Text="{x:Bind ViewModel.GlobalMediaDissolveDurationMs, Mode=OneWay, Converter={StaticResource MsToSecondsLabelConverter}}"
+                                            TextLineBounds="Tight" />
+                                    </Grid>
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        MaxWidth="260"
+                                        FontSize="11"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="{x:Bind ViewModel.GlobalMediaCustomTransitionToolbarLabel, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis"
+                                        Visibility="{x:Bind ViewModel.GlobalMediaTransitionIsCustom, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                </StackPanel>
+                                <StackPanel
+                                    Grid.Column="2"
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal"
+                                    Spacing="4">
+                                    <Border
+                                        MinHeight="30"
+                                        VerticalAlignment="Center"
+                                        Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                        <Grid ColumnDefinitions="*,Auto,*">
+                                            <Button
+                                                x:Name="MediaLayoutGridButton"
+                                                Grid.Column="0"
+                                                AutomationProperties.Name="Grid view"
+                                                Click="MediaPanelLayoutGrid_Click"
+                                                CornerRadius="4,0,0,4"
+                                                Style="{StaticResource ShowDeckViewModeSegmentButtonStyle}"
+                                                ToolTipService.ToolTip="Grid view">
+                                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                                    <Border
+                                                        HorizontalAlignment="Stretch"
+                                                        VerticalAlignment="Stretch"
+                                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                        CornerRadius="4,0,0,4"
+                                                        Visibility="{x:Bind ViewModel.MediaPanelIsGridMode, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                                    <Grid
+                                                        Padding="10,8"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center">
+                                                        <FontIcon
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                            FontSize="14"
+                                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                            Glyph="&#xF0E2;"
+                                                            Visibility="{x:Bind ViewModel.MediaPanelIsGridMode, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert, Mode=OneWay}" />
+                                                        <FontIcon
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                            FontSize="14"
+                                                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                                            Glyph="&#xF0E2;"
+                                                            Visibility="{x:Bind ViewModel.MediaPanelIsGridMode, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                                    </Grid>
+                                                </Grid>
+                                            </Button>
+                                            <Border
+                                                Grid.Column="1"
+                                                Width="1"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Stretch"
+                                                Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+                                            <Button
+                                                x:Name="MediaLayoutListButton"
+                                                Grid.Column="2"
+                                                AutomationProperties.Name="List view"
+                                                Click="MediaPanelLayoutList_Click"
+                                                CornerRadius="0,4,4,0"
+                                                Style="{StaticResource ShowDeckViewModeSegmentButtonStyle}"
+                                                ToolTipService.ToolTip="List view">
+                                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                                    <Border
+                                                        HorizontalAlignment="Stretch"
+                                                        VerticalAlignment="Stretch"
+                                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                        CornerRadius="0,4,4,0"
+                                                        Visibility="{x:Bind ViewModel.MediaPanelIsListMode, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                                    <Grid
+                                                        Padding="10,8"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center">
+                                                        <FontIcon
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                            FontSize="14"
+                                                            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                            Glyph="&#xE8FD;"
+                                                            Visibility="{x:Bind ViewModel.MediaPanelIsListMode, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=invert, Mode=OneWay}" />
+                                                        <FontIcon
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontFamily="{ThemeResource SymbolThemeFontFamily}"
+                                                            FontSize="14"
+                                                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                                            Glyph="&#xE8FD;"
+                                                            Visibility="{x:Bind ViewModel.MediaPanelIsListMode, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                                    </Grid>
+                                                </Grid>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                    <Border
+                                        Width="1"
+                                        Height="18"
+                                        Margin="2,0,2,0"
+                                        VerticalAlignment="Center"
+                                        Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                                    <Slider
+                                        x:Name="MediaPanelScaleSlider"
+                                        Width="120"
+                                        VerticalAlignment="Center"
+                                        AutomationProperties.Name="Media thumbnail size"
+                                        Maximum="7"
+                                        Minimum="0"
+                                        SnapsTo="StepValues"
+                                        StepFrequency="1"
+                                        TickFrequency="1"
+                                        TickPlacement="None"
+                                        ToolTipService.ToolTip="Thumbnail size (grid and table)"
+                                        Value="{x:Bind ViewModel.MediaPanelScaleStep, Mode=OneWay}"
+                                        ValueChanged="MediaPanelScaleSlider_ValueChanged" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+                <Border
+                    x:Name="MediaPanelResizeHandle"
+                    Height="10"
+                    Margin="0,-5,0,0"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Top"
+                    Background="Transparent"
+                    PointerEntered="MediaPanelSplitter_PointerEntered"
+                    PointerExited="MediaPanelSplitter_PointerExited"
+                    PointerPressed="MediaPanelSplitter_PointerPressed"
+                    PointerMoved="MediaPanelSplitter_PointerMoved"
+                    PointerReleased="MediaPanelSplitter_PointerReleased"
+                    PointerCaptureLost="MediaPanelSplitter_PointerCaptureLost">
+                    <Border
+                        x:Name="MediaPanelResizeHandleHoverLine"
+                        Height="2"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Center"
+                        Background="{ThemeResource ShowOutputPanelResizeHoverBrush}"
+                        Opacity="0">
+                        <Border.OpacityTransition>
+                            <ScalarTransition Duration="0:0:0.12" />
+                        </Border.OpacityTransition>
+                    </Border>
+                </Border>
+            </Grid>
+        </Border>
+        <Grid
+            x:Name="MediaDragPreviewHost"
+            Width="480"
+            Height="420"
+            Margin="-20000,0,0,0"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            IsHitTestVisible="False" />
+    </Grid>
+</UserControl>

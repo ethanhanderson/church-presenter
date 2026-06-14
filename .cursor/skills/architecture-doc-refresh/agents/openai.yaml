@@ -1,0 +1,4 @@
+interface:
+  display_name: "Architecture Docs Maintainer"
+  short_description: "Distill native app changes into ChurchPresenter architecture docs"
+  default_prompt: "Review the recent native Windows/macOS app changes, read the relevant ProPresenter reference docs as read-only behavior sources, and update only the applicable docs/architecture shared and platform guides with durable architectural decisions and implementation guidance. Keep Windows and macOS guidance aligned, use Microsoft Learn or Apple/Sosumi MCP tools when platform docs are needed, and confirm that docs/reference/propresenter was not changed."

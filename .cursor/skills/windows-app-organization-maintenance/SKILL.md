@@ -128,7 +128,7 @@ Delete or consolidate dead code when safe. Do not leave "temporary" duplicate fi
 4. Split mixed-purpose files into smaller focused files when the boundary is clear.
 5. Review workspace/content layout changes against the canonical TitleCase folder structure and machine-local state rules.
 6. Remove unused code and files created by recent edits.
-7. Verify with the relevant build/tests after reorganization work.
+7. Verify with the relevant build/tests after reorganization work. Use `.cursor/rules/windows-build-verification.mdc` for Windows app builds: run non-AppX tests first when useful, close only the running `ChurchPresenter` process before the packaged WinUI build, retry once on an AppX lock race, and launch the app last.
 
 ## Preferred Outcomes
 

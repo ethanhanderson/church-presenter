@@ -29,11 +29,11 @@ public interface IContentDirectoryService
     /// <summary>Converts an absolute path under the content root to a root-relative path when possible.</summary>
     string ToContentRelativePath(string path);
 
-    /// <summary>Builds a presentation path like <c>Presentations/{sanitizedTitle}_{idPrefix8}.cpres</c>.</summary>
-    string GeneratePresentationPath(string title, string presentationId);
+    /// <summary>Builds a presentation path like <c>Presentations/{sanitizedTitle}.cpres</c>. Ids are stored in manifest/catalog only.</summary>
+    string GeneratePresentationPath(string title);
 
-    /// <summary>Path to <c>Presentations/songs/{songId}.cpres</c>.</summary>
-    string GetSongPresentationPath(string songId);
+    /// <summary>Path to <c>Presentations/songs/{sanitizedTitle}.cpres</c>.</summary>
+    string GetSongPresentationPath(string title);
 
     // ── Content root manifest ────────────────────────────────────────────────
 
@@ -45,26 +45,26 @@ public interface IContentDirectoryService
     /// <summary>Absolute path to the <c>Libraries/</c> directory under the content root.</summary>
     string GetLibrariesRootDirectory();
 
-    /// <summary>Absolute path to a single library folder: <c>Libraries/&lt;libraryId&gt;/</c>.</summary>
-    string GetLibraryRootDirectory(string libraryId);
+    /// <summary>Absolute path to a single library folder: <c>Libraries/&lt;folderName&gt;/</c>.</summary>
+    string GetLibraryRootDirectory(string folderName);
 
     /// <summary>Absolute path to <c>Libraries/Index.json</c>.</summary>
     string GetLibrariesIndexPath();
 
-    /// <summary>Absolute path to <c>Libraries/&lt;libraryId&gt;/Library.json</c>.</summary>
-    string GetLibraryManifestPath(string libraryId);
+    /// <summary>Absolute path to <c>Libraries/&lt;folderName&gt;/Library.json</c>.</summary>
+    string GetLibraryManifestPath(string folderName);
 
     /// <summary>Absolute path to the <c>Playlists/</c> directory under the content root.</summary>
     string GetPlaylistsRootDirectory();
 
-    /// <summary>Absolute path to a single playlist folder: <c>Playlists/&lt;playlistId&gt;/</c>.</summary>
-    string GetPlaylistRootDirectory(string playlistId);
+    /// <summary>Absolute path to a single playlist folder: <c>Playlists/&lt;folderName&gt;/</c>.</summary>
+    string GetPlaylistRootDirectory(string folderName);
 
     /// <summary>Absolute path to <c>Playlists/Index.json</c>.</summary>
     string GetPlaylistsIndexPath();
 
-    /// <summary>Absolute path to <c>Playlists/&lt;playlistId&gt;/Playlist.json</c>.</summary>
-    string GetPlaylistManifestPath(string playlistId);
+    /// <summary>Absolute path to <c>Playlists/&lt;folderName&gt;/Playlist.json</c>.</summary>
+    string GetPlaylistManifestPath(string folderName);
 
     /// <summary>Absolute path to the <c>Presentations/</c> directory under the content root.</summary>
     string GetPresentationsRootDirectory();

@@ -99,6 +99,9 @@ public sealed class SettingsService(
                 DeckScaleStep = _sharedConfig.Show.DeckScaleStep,
                 MediaPanelScaleStep = _sharedConfig.Show.MediaPanelScaleStep,
                 MediaSeekSeconds = _sharedConfig.Show.MediaSeekSeconds,
+                OutputClearInactiveAppearance = string.IsNullOrWhiteSpace(_sharedConfig.Show.OutputClearInactiveAppearance)
+                    ? "disabledAccent"
+                    : _sharedConfig.Show.OutputClearInactiveAppearance,
                 Timers = new List<ShowTimerDefinition>(_sharedConfig.Show.Timers),
                 FavoriteTransitions = new List<string>(_sharedConfig.Show.FavoriteTransitions),
                 RecentTransitions = new List<string>(_sharedConfig.Show.RecentTransitions),
@@ -168,6 +171,9 @@ public sealed class SettingsService(
                 sc.DeckScaleStep = Math.Clamp(s.Show.DeckScaleStep, 0, 4);
                 sc.MediaPanelScaleStep = Math.Clamp(s.Show.MediaPanelScaleStep, 0, 7);
                 sc.MediaSeekSeconds = s.Show.MediaSeekSeconds <= 0 ? 5 : Math.Clamp(s.Show.MediaSeekSeconds, 1, 60);
+                sc.OutputClearInactiveAppearance = string.IsNullOrWhiteSpace(s.Show.OutputClearInactiveAppearance)
+                    ? "disabledAccent"
+                    : s.Show.OutputClearInactiveAppearance;
             }
             if (s.Show?.Timers != null)
                 sc.Timers = new List<ShowTimerDefinition>(s.Show.Timers);

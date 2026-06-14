@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 using Microsoft.Extensions.Logging;
 
@@ -16,8 +15,6 @@ public sealed class ContentDirectoryService(ILogger<ContentDirectoryService> log
 
     private const string AppDirName = "Church Presenter";
     private const string AppLocalDirName = "ChurchPresenter";
-
-    private static readonly Regex WhitespaceRuns = new(@"\s+", RegexOptions.Compiled);
 
     // ── Root resolution ──────────────────────────────────────────────────────
 
@@ -101,19 +98,17 @@ public sealed class ContentDirectoryService(ILogger<ContentDirectoryService> log
     }
 
     /// <inheritdoc />
-    public string GeneratePresentationPath(string title, string presentationId)
+    public string GeneratePresentationPath(string title)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(presentationId);
-        var prefix = presentationId.Length >= 8 ? presentationId[..8] : presentationId;
-        var sanitized = SanitizePresentationTitle(title);
-        return Path.Combine(GetPresentationsRootDirectory(), $"{sanitized}_{prefix}.cpres");
+        var sanitized = ContentNaming.SanitizeFileName(title);
+        return Path.Combine(GetPresentationsRootDirectory(), $"{sanitized}.cpres");
     }
 
     /// <inheritdoc />
-    public string GetSongPresentationPath(string songId)
+    public string GetSongPresentationPath(string title)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(songId);
-        return Path.Combine(GetPresentationsRootDirectory(), "songs", $"{songId}.cpres");
+        var sanitized = ContentNaming.SanitizeFileName(title);
+        return Path.Combine(GetPresentationsRootDirectory(), "songs", $"{sanitized}.cpres");
     }
 
     // ── Content root manifest ────────────────────────────────────────────────
@@ -129,10 +124,10 @@ public sealed class ContentDirectoryService(ILogger<ContentDirectoryService> log
         Path.Combine(GetDocumentsDataDirectory(), "Libraries");
 
     /// <inheritdoc />
-    public string GetLibraryRootDirectory(string libraryId)
+    public string GetLibraryRootDirectory(string folderName)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(libraryId);
-        return Path.Combine(GetLibrariesRootDirectory(), libraryId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
+        return Path.Combine(GetLibrariesRootDirectory(), folderName);
     }
 
     /// <inheritdoc />
@@ -140,10 +135,10 @@ public sealed class ContentDirectoryService(ILogger<ContentDirectoryService> log
         Path.Combine(GetLibrariesRootDirectory(), "Index.json");
 
     /// <inheritdoc />
-    public string GetLibraryManifestPath(string libraryId)
+    public string GetLibraryManifestPath(string folderName)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(libraryId);
-        return Path.Combine(GetLibraryRootDirectory(libraryId), "Library.json");
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
+        return Path.Combine(GetLibraryRootDirectory(folderName), "Library.json");
     }
 
     /// <inheritdoc />
@@ -151,10 +146,10 @@ public sealed class ContentDirectoryService(ILogger<ContentDirectoryService> log
         Path.Combine(GetDocumentsDataDirectory(), "Playlists");
 
     /// <inheritdoc />
-    public string GetPlaylistRootDirectory(string playlistId)
+    public string GetPlaylistRootDirectory(string folderName)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(playlistId);
-        return Path.Combine(GetPlaylistsRootDirectory(), playlistId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
+        return Path.Combine(GetPlaylistsRootDirectory(), folderName);
     }
 
     /// <inheritdoc />
@@ -162,10 +157,10 @@ public sealed class ContentDirectoryService(ILogger<ContentDirectoryService> log
         Path.Combine(GetPlaylistsRootDirectory(), "Index.json");
 
     /// <inheritdoc />
-    public string GetPlaylistManifestPath(string playlistId)
+    public string GetPlaylistManifestPath(string folderName)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(playlistId);
-        return Path.Combine(GetPlaylistRootDirectory(playlistId), "Playlist.json");
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderName);
+        return Path.Combine(GetPlaylistRootDirectory(folderName), "Playlist.json");
     }
 
     /// <inheritdoc />
@@ -398,28 +393,6 @@ public sealed class ContentDirectoryService(ILogger<ContentDirectoryService> log
         }
 
         return null;
-    }
-
-    private static string SanitizePresentationTitle(string title)
-    {
-        if (string.IsNullOrEmpty(title))
-            return "Untitled";
-
-        Span<char> buffer = stackalloc char[title.Length];
-        var len = 0;
-        foreach (var c in title)
-        {
-            if (c is '<' or '>' or ':' or '"' or '/' or '\\' or '|' or '?' or '*')
-                continue;
-            buffer[len++] = c;
-        }
-
-        var slice = buffer[..len];
-        var s = slice.ToString();
-        s = WhitespaceRuns.Replace(s, "_").Trim();
-        if (s.Length == 0)
-            s = "Untitled";
-        return s.Length <= 50 ? s : s[..50];
     }
 
     private sealed class ContentRootBindingFile

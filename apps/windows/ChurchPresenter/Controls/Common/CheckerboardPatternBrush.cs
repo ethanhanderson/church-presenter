@@ -6,12 +6,22 @@ using Microsoft.UI.Xaml.Media.Imaging;
 namespace ChurchPresenter.Controls;
 
 /// <summary>
-/// Checkerboard for transparent slide thumbnails: bitmap matches control size; cell size matches design (~24–26 tiles across a typical thumbnail → 8px logical cells).
+/// Checkerboard for transparent slide previews. Tile counts are expressed across the native slide
+/// render width; the Win2D scene renderer converts them to pixel cell size per surface.
 /// </summary>
 public static class CheckerboardPatternBrush
 {
-    /// <summary>Logical pixels per checker tile (screenshot density).</summary>
-    public const int DefaultCellSize = 8;
+    /// <summary>Fallback cell size when no tile count is supplied (logical px).</summary>
+    public const int DefaultCellSize = 6;
+
+    /// <summary>Dense checker for deck cards and editor slide-list thumbs (~8–10 px when letterboxed).</summary>
+    public const int ThumbnailTileCount = 32;
+
+    /// <summary>Main editor / reflow / theme canvas previews.</summary>
+    public const int EditorTileCount = 40;
+
+    /// <summary>Generic preview surfaces (non-editor, non-thumbnail intent).</summary>
+    public const int PreviewTileCount = 36;
 
     /// <summary>
     /// Creates an <see cref="ImageBrush"/> sized exactly to <paramref name="pixelWidth"/> × <paramref name="pixelHeight"/>.

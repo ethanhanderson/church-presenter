@@ -1,7 +1,8 @@
+using ChurchPresenter.App.Tests.TestSupport;
 using ChurchPresenter.Backend.Commands;
 using ChurchPresenter.Backend.Overlays;
+using ChurchPresenter.Backend.Pipeline.Commands;
 using ChurchPresenter.Backend.Rendering;
-using ChurchPresenter.Backend.Stage;
 
 using FluentAssertions;
 
@@ -21,14 +22,12 @@ public sealed class SlideActionExecutionServiceTests
     [Fact]
     public void ExecuteForSlide_routes_clear_actions_to_backend_command_pipeline()
     {
-        Mock<ILiveSessionService> live = new();
+        FakeCueDispatcher cueDispatcher = new();
         Mock<IShowTimerService> timers = new();
-        FakeLiveProductionFacade liveProduction = new();
         SlideActionExecutionService service = new(
-            live.Object,
+            cueDispatcher,
             timers.Object,
-            NullLogger<SlideActionExecutionService>.Instance,
-            liveProduction);
+            NullLogger<SlideActionExecutionService>.Instance);
         PresentationSlide slide = new()
         {
             Actions =
@@ -40,27 +39,23 @@ public sealed class SlideActionExecutionServiceTests
 
         service.ExecuteForSlide(slide);
 
-        liveProduction.CommandBatches.Should().HaveCount(1);
-        liveProduction.CommandBatches[0].Should().HaveCount(2);
-        liveProduction.CommandBatches[0][0].Clear!.Layers.Should().Equal(BackendOutputLayerKind.Slide);
-        liveProduction.CommandBatches[0][1].Clear!.Layers.Should().Equal(
+        LiveCommand[] commands = cueDispatcher.CommandBatches.SelectMany(batch => batch).ToArray();
+        commands.Should().HaveCount(2);
+        commands[0].Clear!.Layers.Should().Equal(BackendOutputLayerKind.Slide);
+        commands[1].Clear!.Layers.Should().Equal(
             BackendOutputLayerKind.Media,
             BackendOutputLayerKind.Audio);
-        live.Verify(session => session.ClearPresentation(), Times.Never);
-        live.Verify(session => session.ClearMedia(), Times.Never);
     }
 
     [Fact]
     public void ExecuteForSlide_routes_generated_overlay_actions_to_backend_command_pipeline()
     {
-        Mock<ILiveSessionService> live = new();
+        FakeCueDispatcher cueDispatcher = new();
         Mock<IShowTimerService> timers = new();
-        FakeLiveProductionFacade liveProduction = new();
         SlideActionExecutionService service = new(
-            live.Object,
+            cueDispatcher,
             timers.Object,
-            NullLogger<SlideActionExecutionService>.Instance,
-            liveProduction);
+            NullLogger<SlideActionExecutionService>.Instance);
         PresentationSlide slide = new()
         {
             Id = "slide-1",
@@ -75,8 +70,8 @@ public sealed class SlideActionExecutionServiceTests
 
         service.ExecuteForSlide(slide);
 
-        liveProduction.CommandBatches.Should().ContainSingle();
-        LiveCommand[] commands = liveProduction.CommandBatches.Single().ToArray();
+        LiveCommand[] commands = cueDispatcher.CommandBatches.SelectMany(batch => batch).ToArray();
+        commands.Should().HaveCount(4);
         commands.Should().AllSatisfy(command => command.Source.Kind.Should().Be(LiveCommandSourceKind.SlideAction));
         commands.Any(command =>
             command.Overlay != null
@@ -111,14 +106,12 @@ public sealed class SlideActionExecutionServiceTests
     [Fact]
     public void ExecuteForSlide_routes_macro_action_to_backend_macro_pipeline()
     {
-        Mock<ILiveSessionService> live = new();
+        FakeCueDispatcher cueDispatcher = new();
         Mock<IShowTimerService> timers = new();
-        FakeLiveProductionFacade liveProduction = new();
         SlideActionExecutionService service = new(
-            live.Object,
+            cueDispatcher,
             timers.Object,
-            NullLogger<SlideActionExecutionService>.Instance,
-            liveProduction);
+            NullLogger<SlideActionExecutionService>.Instance);
         PresentationSlide slide = new()
         {
             Id = "slide-1",
@@ -150,78 +143,12 @@ public sealed class SlideActionExecutionServiceTests
 
         service.ExecuteForSlide(slide);
 
-        liveProduction.Macros.Should().ContainSingle();
-        liveProduction.Macros[0].Id.Should().Be("walk-in");
-        liveProduction.Macros[0].Commands.Count(command =>
+        cueDispatcher.LastMacro.Should().NotBeNull();
+        cueDispatcher.LastMacro!.Id.Should().Be("walk-in");
+        cueDispatcher.LastMacro.Commands.Count(command =>
             command.Overlay != null
             && command.Overlay.Kind == OverlayContentKind.Message
             && command.Overlay.Id == "walk-in-message")
             .Should().Be(1);
-    }
-
-    private sealed class FakeLiveProductionFacade : ILiveProductionFacade
-    {
-        public event EventHandler<LiveProductionChangedEventArgs>? Changed;
-
-        public LiveProductionSnapshot Current { get; } = LiveProductionSnapshot.Empty;
-
-        public List<IReadOnlyList<LiveCommand>> CommandBatches { get; } = [];
-
-        public List<LiveMacroDefinition> Macros { get; } = [];
-
-        public Task SetLookAsync(string lookId, CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public ActionResult SetOverlay(OverlayContentState overlay) => new() { Succeeded = true };
-
-        public ActionResult SetTimer(TimerSnapshot timer) => new() { Succeeded = true };
-
-        public ActionResult SetCaptureSession(CaptureSessionState captureSession) => new() { Succeeded = true };
-
-        public void ReportOutputHostFeedback(OutputHostFrameFeedbackState feedback)
-        {
-        }
-
-        public void ReportMediaPlayerFailure(MediaPlayerFailureState failure)
-        {
-        }
-
-        public ActionResult ExecuteCommands(
-            IEnumerable<LiveCommand> commands,
-            LiveCommandSource? source = null,
-            string? macroId = null)
-        {
-            CommandBatches.Add(commands.ToArray());
-            Changed?.Invoke(this, new LiveProductionChangedEventArgs { Snapshot = Current });
-            return new ActionResult { Succeeded = true };
-        }
-
-        public ActionResult ExecuteMacro(LiveMacroDefinition macro, LiveCommandSource? source = null)
-        {
-            Macros.Add(macro);
-            Changed?.Invoke(this, new LiveProductionChangedEventArgs { Snapshot = Current });
-            return new ActionResult { Succeeded = true };
-        }
-
-        public ActionResult ClearGroup(string clearGroupId) => new() { Succeeded = true };
-
-        public ActionResult ClearLayers(IEnumerable<BackendOutputLayerKind> layers)
-        {
-            Changed?.Invoke(this, new LiveProductionChangedEventArgs { Snapshot = Current });
-            return new ActionResult { Succeeded = true };
-        }
-
-        public ActionResult ReleaseClearedLayers(IEnumerable<BackendOutputLayerKind> layers)
-        {
-            Changed?.Invoke(this, new LiveProductionChangedEventArgs { Snapshot = Current });
-            return new ActionResult { Succeeded = true };
-        }
-
-        public ActionResult SetStageLayout(
-            string screenId,
-            string stageLayoutId,
-            StageAudienceCommandMode deliveryMode = StageAudienceCommandMode.StageAndAudience)
-        {
-            return new ActionResult { Succeeded = true };
-        }
     }
 }

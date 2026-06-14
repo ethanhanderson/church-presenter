@@ -242,7 +242,8 @@ public sealed class LiveCommandExecutor(IBackendRenderEngine renderEngine) : ILi
     /// <summary>Creates a command that updates generated overlay state.</summary>
     public static LiveCommand SetOverlay(
         OverlayContentState overlay,
-        LiveCommandSource? source = null)
+        LiveCommandSource? source = null,
+        LayerTransitionState? transition = null)
     {
         ArgumentNullException.ThrowIfNull(overlay);
 
@@ -251,6 +252,7 @@ public sealed class LiveCommandExecutor(IBackendRenderEngine renderEngine) : ILi
             Kind = LiveCommandKind.SetOverlayState,
             Source = source ?? new LiveCommandSource { Kind = LiveCommandSourceKind.Operator },
             Overlay = overlay,
+            Transition = transition,
         };
     }
 

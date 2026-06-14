@@ -7,7 +7,7 @@ description: "Building WinUI 3 apps. Windows App SDK setup, XAML patterns, MSIX/
 
 WinUI 3 / Windows App SDK development: project setup with `UseWinUI` and Windows 10 TFM, XAML patterns with compiled bindings (`x:Bind`) and deferred loading (`x:Load`), MVVM with CommunityToolkit.Mvvm, MSIX and unpackaged deployment modes, Windows integration (lifecycle, notifications, widgets), UWP migration guidance, and common agent pitfalls.
 
-**Version assumptions:** .NET 8.0+ baseline. Windows App SDK 1.6+ (current stable). TFM `net8.0-windows10.0.19041.0`. .NET 9 features explicitly marked.
+**Version assumptions:** .NET 10 baseline for ChurchPresenter. Windows App SDK **2.2.x** (current stable). WinUI host TFM `net10.0-windows10.0.26100.0` with `TargetPlatformMinVersion` **10.0.17763.0**. Older .NET 8 / Windows App SDK 1.x examples in this skill remain valid for general WinUI guidance.
 
 **Scope boundary:** This skill owns WinUI 3 project setup, XAML patterns, MVVM integration, packaging modes, Windows platform integration, and UWP migration guidance. Desktop testing is owned by [skill:dotnet-ui-testing-core]. Migration decision matrix is owned by [skill:dotnet-wpf-migration].
 

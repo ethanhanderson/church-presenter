@@ -1,4 +1,5 @@
 using ChurchPresenter.Backend.Overlays;
+using ChurchPresenter.Backend.Pipeline.Commands;
 
 using Microsoft.Extensions.Logging;
 
@@ -58,11 +59,11 @@ public interface IShowTimerService
 public sealed class ShowTimerService(
     ISettingsService settings,
     ILogger<ShowTimerService> logger,
-    ILiveProductionFacade? liveProduction = null) : IShowTimerService
+    ICueDispatcher cueDispatcher) : IShowTimerService
 {
     private readonly ISettingsService _settings = settings ?? throw new ArgumentNullException(nameof(settings));
     private readonly ILogger<ShowTimerService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    private readonly ILiveProductionFacade? _liveProduction = liveProduction;
+    private readonly ICueDispatcher _cueDispatcher = cueDispatcher ?? throw new ArgumentNullException(nameof(cueDispatcher));
 
     /// <inheritdoc />
     public string? CurrentTimerId { get; private set; }
@@ -160,7 +161,7 @@ public sealed class ShowTimerService(
             CurrentTimerStartedAt = null;
         }
 
-        _liveProduction?.SetTimer(CreateTimerSnapshot(timer, GeneratedTimerStatus.Paused, ResolveConfiguredDuration(timer)));
+        _ = _cueDispatcher.SetTimerAsync(CreateTimerSnapshot(timer, GeneratedTimerStatus.Paused, ResolveConfiguredDuration(timer)));
     }
 
     /// <inheritdoc />
@@ -172,7 +173,7 @@ public sealed class ShowTimerService(
         if (timer == null)
             return;
 
-        _liveProduction?.SetTimer(CreateTimerSnapshot(timer, GeneratedTimerStatus.Stopped, ResolveConfiguredDuration(timer)));
+        _ = _cueDispatcher.SetTimerAsync(CreateTimerSnapshot(timer, GeneratedTimerStatus.Stopped, ResolveConfiguredDuration(timer)));
         if (string.Equals(CurrentTimerId, timerId, StringComparison.OrdinalIgnoreCase))
         {
             CurrentTimerId = null;
@@ -183,13 +184,10 @@ public sealed class ShowTimerService(
 
     private void PublishTimerSnapshot(ShowTimerDefinition? previousTimer)
     {
-        if (_liveProduction == null)
-            return;
-
         if (CurrentTimer == null)
         {
             if (previousTimer != null)
-                _liveProduction.SetTimer(CreateTimerSnapshot(previousTimer, GeneratedTimerStatus.Stopped, TimeSpan.Zero));
+                _ = _cueDispatcher.SetTimerAsync(CreateTimerSnapshot(previousTimer, GeneratedTimerStatus.Stopped, TimeSpan.Zero));
             return;
         }
 
@@ -197,7 +195,7 @@ public sealed class ShowTimerService(
             return;
 
         TimeSpan duration = ResolveConfiguredDuration(CurrentTimer);
-        _liveProduction.SetTimer(CreateTimerSnapshot(CurrentTimer, GeneratedTimerStatus.Running, duration));
+        _ = _cueDispatcher.SetTimerAsync(CreateTimerSnapshot(CurrentTimer, GeneratedTimerStatus.Running, duration));
     }
 
     private static TimerSnapshot CreateTimerSnapshot(

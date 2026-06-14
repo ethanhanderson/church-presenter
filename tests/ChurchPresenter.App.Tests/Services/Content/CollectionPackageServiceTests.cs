@@ -44,8 +44,8 @@ public sealed class CollectionPackageServiceTests
         {
             archive.GetEntry("manifest.json").Should().NotBeNull();
             archive.GetEntry("library.json").Should().NotBeNull();
-            archive.Entries.Should().Contain(entry => entry.FullName == "Presentations/alpha.cpres");
-            archive.Entries.Should().Contain(entry => entry.FullName == "Presentations/beta.cpres");
+            archive.Entries.Should().Contain(entry => entry.FullName == "Presentations/Alpha.cpres");
+            archive.Entries.Should().Contain(entry => entry.FullName == "Presentations/Beta.cpres");
         }
 
         var importRoot = Path.Combine(Path.GetTempPath(), "church-presenter-tests", Guid.NewGuid().ToString("N"));
@@ -152,7 +152,7 @@ public sealed class CollectionPackageServiceTests
         await importPaths.Object.EnsureDocumentsLayoutAsync();
         TestPresentationBundles.WriteBundle(
             importPaths.Object.GetPresentationsDirectory(),
-            "alpha.cpres",
+            "Alpha.cpres",
             "Existing Alpha",
             presentationId: "different-id");
         var importCatalog = CreateCatalog(importPaths);
@@ -162,15 +162,111 @@ public sealed class CollectionPackageServiceTests
 
         preview.Changes.Should().Contain(change =>
             change.Kind == SupportPackageChangeKind.Conflict &&
-            change.Path == "Presentations/alpha.cpres" &&
+            change.Path == "Presentations/Alpha.cpres" &&
             change.RequiresConfirmation &&
             !change.IsDestructive);
         preview.CopyRequirements.Should().Contain(requirement =>
             requirement.Kind == PackageCopyRequirementKind.CopyPresentationBundle &&
-            requirement.DestinationPath == "Presentations/alpha.cpres");
+            requirement.DestinationPath == "Presentations/Alpha.cpres");
         preview.CopyRequirements.Should().Contain(requirement =>
             requirement.Kind == PackageCopyRequirementKind.CopyEmbeddedMediaPayload &&
             requirement.SourcePath == "media/background.mp4");
+    }
+
+    [Fact]
+    public async Task ExportLibraryAsync_document_mode_writes_manifest_flags_and_strips_media()
+    {
+        var sourceRoot = Path.Combine(Path.GetTempPath(), "church-presenter-tests", Guid.NewGuid().ToString("N"));
+        var packagePath = Path.Combine(Path.GetTempPath(), "church-presenter-tests", $"{Guid.NewGuid():N}.cplibrary");
+        var sourcePaths = TestContentPaths.Create(sourceRoot);
+        await sourcePaths.Object.EnsureDocumentsLayoutAsync();
+
+        var alphaPath = TestPresentationBundles.WriteBundle(
+            sourcePaths.Object.GetPresentationsDirectory(),
+            "alpha.cpres",
+            "Alpha",
+            presentationId: null,
+            includeMedia: true);
+        var sourceCatalog = CreateCatalog(sourcePaths);
+        await sourceCatalog.LoadAsync();
+        sourceCatalog.Catalog.Libraries.Add(new LibraryDto
+        {
+            Id = "library-1",
+            Name = "Seasonal",
+            Presentations =
+            [
+                new() { Path = sourcePaths.Object.ToContentRelativePath(alphaPath), Title = "Alpha" },
+            ],
+        });
+        await sourceCatalog.SaveAsync();
+
+        var exporter = CreatePackageService(sourcePaths, sourceCatalog);
+        await exporter.ExportLibraryAsync(
+            "library-1",
+            packagePath,
+            new CollectionPackageExportOptions
+            {
+                IncludeMedia = false,
+                IncludeFonts = false,
+            });
+
+        using var archive = ZipFile.OpenRead(packagePath);
+        using var manifestStream = archive.GetEntry("manifest.json")!.Open();
+        using var reader = new StreamReader(manifestStream);
+        var manifestJson = await reader.ReadToEndAsync();
+        manifestJson.Should().Contain("\"includeMedia\": false");
+        manifestJson.Should().Contain("\"presentationBundleMode\": \"document\"");
+
+        var presentationEntry = archive.GetEntry("Presentations/Alpha.cpres");
+        presentationEntry.Should().NotBeNull();
+        var tempPresentation = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.cpres");
+        presentationEntry!.ExtractToFile(tempPresentation, overwrite: true);
+        using (var presentationArchive = ZipFile.OpenRead(tempPresentation))
+        {
+            presentationArchive.GetEntry("media/background.mp4").Should().BeNull();
+        }
+
+        File.Delete(tempPresentation);
+    }
+
+    [Fact]
+    public async Task ExportPlaylistAsync_without_media_uses_document_mode_presentations()
+    {
+        var sourceRoot = Path.Combine(Path.GetTempPath(), "church-presenter-tests", Guid.NewGuid().ToString("N"));
+        var packagePath = Path.Combine(Path.GetTempPath(), "church-presenter-tests", $"{Guid.NewGuid():N}.cpplaylist");
+        var sourcePaths = TestContentPaths.Create(sourceRoot);
+        await sourcePaths.Object.EnsureDocumentsLayoutAsync();
+
+        var alphaPath = TestPresentationBundles.WriteBundle(
+            sourcePaths.Object.GetPresentationsDirectory(),
+            "alpha.cpres",
+            "Alpha",
+            presentationId: null,
+            includeMedia: true);
+        var sourceCatalog = CreateCatalog(sourcePaths);
+        await sourceCatalog.LoadAsync();
+        sourceCatalog.Catalog.Playlists.Add(new PlaylistDto
+        {
+            Id = "playlist-1",
+            Name = "Sunday Set",
+            Items =
+            [
+                new() { Path = sourcePaths.Object.ToContentRelativePath(alphaPath), Title = "Alpha" },
+            ],
+        });
+        await sourceCatalog.SaveAsync();
+
+        var exporter = CreatePackageService(sourcePaths, sourceCatalog);
+        await exporter.ExportPlaylistAsync(
+            "playlist-1",
+            packagePath,
+            new CollectionPackageExportOptions { IncludeMedia = false, IncludeFonts = false });
+
+        using var archive = ZipFile.OpenRead(packagePath);
+        using var manifestStream = archive.GetEntry("manifest.json")!.Open();
+        using var reader = new StreamReader(manifestStream);
+        var manifestJson = await reader.ReadToEndAsync();
+        manifestJson.Should().Contain("\"includeMedia\": false");
     }
 
     private static CatalogService CreateCatalog(Mock<IContentDirectoryService> paths)

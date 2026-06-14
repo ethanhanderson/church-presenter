@@ -110,7 +110,7 @@ public static class ContentPackageBoundaries
             [ContentPackageBoundaryKind.PlaylistPackage] = new()
             {
                 Kind = ContentPackageBoundaryKind.PlaylistPackage,
-                IncludesPresentationDocuments = false,
+                IncludesPresentationDocuments = true,
                 IncludesPlaylistStructure = true,
                 IncludesMediaPayloads = false,
                 IncludesSharedConfiguration = false,
@@ -121,7 +121,7 @@ public static class ContentPackageBoundaries
             [ContentPackageBoundaryKind.PlaylistPackageWithMedia] = new()
             {
                 Kind = ContentPackageBoundaryKind.PlaylistPackageWithMedia,
-                IncludesPresentationDocuments = false,
+                IncludesPresentationDocuments = true,
                 IncludesPlaylistStructure = true,
                 IncludesMediaPayloads = true,
                 IncludesSharedConfiguration = false,

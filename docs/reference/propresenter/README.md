@@ -13,10 +13,9 @@ The implementation-oriented notes remain below as deeper references. They are or
 This tree is intentionally layered so it can grow without mixing concerns:
 
 1. **Feature map**: `features.md` is the product-level index. It answers "what does ProPresenter do?" and links to detail pages by feature family.
-2. **Feature detail pages**: `features/*.md` explain current ProPresenter behavior, cross-feature interactions, and native Windows/macOS architecture implications.
-3. **Subsystem deep dives**: folders such as `output-system/`, `media-management/`, `library-show-management/`, and `operator-workflows/` preserve implementation-oriented analysis by domain.
-4. **Implementation targets**: `feature-inventory.md`, `render-engine/`, and `churchpresenter-design-notes.md` translate product behavior into ChurchPresenter contracts, phases, and dependencies.
-5. **Source bibliography**: `output-system/sources.md` records the official source basis and coverage limits.
+2. **Feature detail pages**: `features/*.md` explain current ProPresenter behavior, cross-feature interactions, and product-model implications.
+3. **Subsystem deep dives**: folders such as `output-system/`, `media-management/`, `library-show-management/`, and `operator-workflows/` preserve domain-specific ProPresenter behavior notes.
+4. **Source bibliography**: `output-system/sources.md` records the official source basis and coverage limits.
 
 When adding future ProPresenter research, add the user-facing behavior to the relevant `features/*.md` page first, then add or update subsystem notes only when the behavior affects a shared model, renderer, command path, portability boundary, or output contract.
 
@@ -42,12 +41,6 @@ Use this folder as a reference set, not a chronological research log.
 - [Library and show management](library-show-management/libraries-playlists-integrations.md) - libraries, playlists, playlist templates, presentations, themes, arrangements, Planning Center, Bibles, SongSelect, Quick Search, sync, migration, and packages.
 - [Presentations and slides](presentations-and-slides.md) - slide canvas objects, themes, Reflow, groups, arrangements, show views, slide destination, and slide-scene implications for rendering.
 - [Operator workflows and automation](operator-workflows/show-controls-and-recovery.md) - show controls, clear groups, timers, messages, props, macros, slide actions, remotes, capture/streaming controls, and live recovery workflows.
-
-### Implementation Reference
-
-- [ChurchPresenter design notes](output-system/churchpresenter-design-notes.md) - implementation implications from the ProPresenter output model.
-- [Feature inventory](feature-inventory.md) - implementation-oriented ChurchPresenter capability targets, source basis, implications, phases, and dependencies.
-- [Render engine architecture](render-engine/render-engine-architecture.md) - implementation-oriented pipeline from live commands to layer state, per-screen frames, WinUI hosts, media playback, diagnostics, and phased build-out.
 
 ### Source Bibliography
 

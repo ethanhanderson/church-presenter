@@ -9,6 +9,7 @@ public sealed partial class SettingsPage : Page
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
         SettingsNavFrame.Navigated += OnNavigated;
     }
 
@@ -22,5 +23,11 @@ public sealed partial class SettingsPage : Page
     private void OnNavigated(object sender, Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
     {
         _ = SettingsScrollViewer.ChangeView(null, 0, null, true);
+    }
+
+    private void OnUnloaded(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
     }
 }

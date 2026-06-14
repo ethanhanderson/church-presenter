@@ -14,7 +14,10 @@ namespace ChurchPresenter.ViewModels;
 /// </summary>
 public sealed partial class MediaPanelItemViewModel : ObservableObject
 {
+    private const uint MediaPanelThumbnailSize = 768;
+
     private readonly IMediaLibraryService _mediaLibrary;
+    private readonly IMediaThumbnailCache _thumbnailCache;
     private readonly string _resolvedFilePath;
 
     /// <summary>
@@ -22,12 +25,17 @@ public sealed partial class MediaPanelItemViewModel : ObservableObject
     /// </summary>
     /// <param name="mediaItem">The backing media-library item.</param>
     /// <param name="mediaLibrary">Library service used to persist file-derived metadata.</param>
-    public MediaPanelItemViewModel(MediaLibraryItem mediaItem, IMediaLibraryService mediaLibrary)
+    /// <param name="thumbnailCache">Shared host cache used to reuse startup-loaded thumbnails.</param>
+    public MediaPanelItemViewModel(
+        MediaLibraryItem mediaItem,
+        IMediaLibraryService mediaLibrary,
+        IMediaThumbnailCache thumbnailCache)
     {
         MediaItem = mediaItem ?? throw new ArgumentNullException(nameof(mediaItem));
         _mediaLibrary = mediaLibrary ?? throw new ArgumentNullException(nameof(mediaLibrary));
+        _thumbnailCache = thumbnailCache ?? throw new ArgumentNullException(nameof(thumbnailCache));
         _resolvedFilePath = _mediaLibrary.ResolveStoredMediaPath(mediaItem.Path);
-        _ = LoadThumbnailAsync();
+        ApplyCachedThumbnail();
         _ = EnrichFileMetadataAsync();
     }
 
@@ -184,28 +192,6 @@ public sealed partial class MediaPanelItemViewModel : ObservableObject
     /// <summary>True when <see cref="DimensionsLabel"/> is non-empty.</summary>
     public bool HasDimensionsLabel => DimensionsLabel.Length > 0;
 
-    /// <summary>Duration or dimensions text for the footer; never the media kind (use <see cref="TypeGlyph"/> + <see cref="TypeDisplayName"/>).</summary>
-    public string FooterRightMetaText
-    {
-        get
-        {
-            if (HasDurationLabel)
-            {
-                return DurationLabel;
-            }
-
-            if (HasDimensionsLabel)
-            {
-                return DimensionsLabel;
-            }
-
-            return "";
-        }
-    }
-
-    /// <summary>True when <see cref="FooterRightMetaText"/> is non-empty.</summary>
-    public bool HasFooterRightMetaText => HasDurationLabel || HasDimensionsLabel;
-
     /// <summary>Accessible name and tooltip text for the media kind (Video, Audio, Image).</summary>
     public string TypeDisplayName => EffectiveMediaType.ToLowerInvariant() switch
     {
@@ -225,14 +211,21 @@ public sealed partial class MediaPanelItemViewModel : ObservableObject
 
     /// <summary>Loads the current media file thumbnail.</summary>
     /// <returns>A task that completes when the current thumbnail load finishes.</returns>
-    public async Task LoadThumbnailAsync()
+    public async Task LoadThumbnailAsync(CancellationToken cancellationToken = default)
     {
+        if (HasThumbnail && ThumbnailSource != null)
+            return;
+
         var dq = App.MainWindow?.DispatcherQueue ?? DispatcherQueue.GetForCurrentThread();
 
         ImageSource? source = null;
         try
         {
-            source = await MediaThumbnailLoader.TryLoadAsync(_resolvedFilePath, EffectiveMediaType, 768)
+            source = await _thumbnailCache.GetOrLoadAsync(
+                    _resolvedFilePath,
+                    EffectiveMediaType,
+                    MediaPanelThumbnailSize,
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
         catch
@@ -259,6 +252,18 @@ public sealed partial class MediaPanelItemViewModel : ObservableObject
         }
 
         dq.TryEnqueue(Apply);
+    }
+
+    private void ApplyCachedThumbnail()
+    {
+        if (!_thumbnailCache.TryGet(_resolvedFilePath, EffectiveMediaType, MediaPanelThumbnailSize, out ImageSource? source)
+            || source == null)
+        {
+            return;
+        }
+
+        ThumbnailSource = source;
+        HasThumbnail = true;
     }
 
     /// <summary>Probes the file for duration/dimensions when missing and persists to the media library.</summary>
@@ -339,8 +344,6 @@ public sealed partial class MediaPanelItemViewModel : ObservableObject
         OnPropertyChanged(nameof(HasDurationLabel));
         OnPropertyChanged(nameof(DimensionsLabel));
         OnPropertyChanged(nameof(HasDimensionsLabel));
-        OnPropertyChanged(nameof(FooterRightMetaText));
-        OnPropertyChanged(nameof(HasFooterRightMetaText));
         OnPropertyChanged(nameof(ThumbnailAspectRatio));
     }
 }

@@ -3,21 +3,20 @@
   "hooks": {
     "afterFileEdit": [
       {
-        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".cursor/hooks/windows-app-org-edit-tracker.ps1\"",
-        "matcher": "Write",
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".cursor/hooks/architecture-doc-refresh.ps1\" -Mode track",
         "timeout": 10
       }
     ],
     "afterTabFileEdit": [
       {
-        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".cursor/hooks/windows-app-org-edit-tracker.ps1\"",
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".cursor/hooks/architecture-doc-refresh.ps1\" -Mode track",
         "timeout": 10
       }
     ],
     "stop": [
       {
-        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".cursor/hooks/windows-app-org-stop.ps1\"",
-        "timeout": 10,
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".cursor/hooks/architecture-doc-refresh.ps1\" -Mode stop",
+        "timeout": 15,
         "loop_limit": 1
       }
     ]

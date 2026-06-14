@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Dispatching;
 
+using ChurchPresenter.Services.Pipeline;
+
 namespace ChurchPresenter.Services.Output;
 
 /// <summary>
@@ -43,22 +45,28 @@ public sealed class OutputWindowService : IOutputWindowService, IDisposable
     }
 
     /// <inheritdoc />
-    public void OpenAudience()
+    public void OpenAudience() => _ = OpenAudienceAsync();
+
+    /// <inheritdoc />
+    public Task OpenAudienceAsync(CancellationToken cancellationToken = default)
     {
         lock (_gate)
         {
             _audienceTargetResolver = ResolveConfiguredAudienceTargets;
         }
 
-        RunOnUiThread(() =>
+        return RunOnUiThreadAsync(async () =>
         {
             EnsureMonitorPollTimer();
-            ApplyRequestedWindows();
-        });
+            await ApplyRequestedWindowsAsync(cancellationToken).ConfigureAwait(true);
+        }, cancellationToken);
     }
 
     /// <inheritdoc />
-    public void OpenForMonitors(IReadOnlyList<int> monitorIndices)
+    public void OpenForMonitors(IReadOnlyList<int> monitorIndices) => _ = OpenForMonitorsAsync(monitorIndices);
+
+    /// <inheritdoc />
+    public Task OpenForMonitorsAsync(IReadOnlyList<int> monitorIndices, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(monitorIndices);
 
@@ -73,11 +81,11 @@ public sealed class OutputWindowService : IOutputWindowService, IDisposable
             _audienceTargetResolver = () => ResolveLegacyAudienceTargets(requested);
         }
 
-        RunOnUiThread(() =>
+        return RunOnUiThreadAsync(async () =>
         {
             EnsureMonitorPollTimer();
-            ApplyRequestedWindows();
-        });
+            await ApplyRequestedWindowsAsync(cancellationToken).ConfigureAwait(true);
+        }, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -98,22 +106,28 @@ public sealed class OutputWindowService : IOutputWindowService, IDisposable
     // ── Stage output ─────────────────────────────────────────────────────────
 
     /// <inheritdoc />
-    public void OpenStage()
+    public void OpenStage() => _ = OpenStageAsync();
+
+    /// <inheritdoc />
+    public Task OpenStageAsync(CancellationToken cancellationToken = default)
     {
         lock (_stageGate)
         {
             _stageTargetResolver = ResolveConfiguredStageTargets;
         }
 
-        RunOnUiThread(() =>
+        return RunOnUiThreadAsync(async () =>
         {
             EnsureStagePollTimer();
-            ApplyRequestedStageWindows();
-        });
+            await ApplyRequestedStageWindowsAsync(cancellationToken).ConfigureAwait(true);
+        }, cancellationToken);
     }
 
     /// <inheritdoc />
-    public void OpenStageForMonitors(IReadOnlyList<int> monitorIndices)
+    public void OpenStageForMonitors(IReadOnlyList<int> monitorIndices) => _ = OpenStageForMonitorsAsync(monitorIndices);
+
+    /// <inheritdoc />
+    public Task OpenStageForMonitorsAsync(IReadOnlyList<int> monitorIndices, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(monitorIndices);
 
@@ -128,11 +142,11 @@ public sealed class OutputWindowService : IOutputWindowService, IDisposable
             _stageTargetResolver = () => ResolveLegacyStageTargets(requested);
         }
 
-        RunOnUiThread(() =>
+        return RunOnUiThreadAsync(async () =>
         {
             EnsureStagePollTimer();
-            ApplyRequestedStageWindows();
-        });
+            await ApplyRequestedStageWindowsAsync(cancellationToken).ConfigureAwait(true);
+        }, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -163,8 +177,10 @@ public sealed class OutputWindowService : IOutputWindowService, IDisposable
         DestroyAllStageCore();
     }
 
-    private void ApplyRequestedWindows()
+    private async Task ApplyRequestedWindowsAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (_disposed)
             return;
 
@@ -211,7 +227,8 @@ public sealed class OutputWindowService : IOutputWindowService, IDisposable
         foreach (LocalDisplayOutputTarget target in validTargets)
         {
             AudienceOutputWindow window = GetOrCreateWindow(target);
-            window.ShowOnMonitor(target.Monitor!);
+            window.ConfigureHostTarget(target.ScreenId, target.EndpointId);
+            await window.ShowOnMonitorAsync(target.Monitor!, cancellationToken).ConfigureAwait(true);
         }
 
         if (App.MainWindow is global::ChurchPresenter.MainWindow mainWindow)
@@ -284,7 +301,7 @@ public sealed class OutputWindowService : IOutputWindowService, IDisposable
         DispatcherQueueTimer timer = queue.CreateTimer();
         timer.IsRepeating = true;
         timer.Interval = TimeSpan.FromSeconds(2);
-        timer.Tick += (_, _) => ApplyRequestedWindows();
+        timer.Tick += async (_, _) => await ApplyRequestedWindowsAsync().ConfigureAwait(true);
         return timer;
     }
 
@@ -295,8 +312,10 @@ public sealed class OutputWindowService : IOutputWindowService, IDisposable
 
     // ── Stage helpers ─────────────────────────────────────────────────────────
 
-    private void ApplyRequestedStageWindows()
+    private async Task ApplyRequestedStageWindowsAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (_disposed)
             return;
 
@@ -341,7 +360,8 @@ public sealed class OutputWindowService : IOutputWindowService, IDisposable
         foreach (LocalDisplayOutputTarget target in validTargets)
         {
             AudienceOutputWindow window = GetOrCreateStageWindow(target);
-            window.ShowOnMonitor(target.Monitor!);
+            window.ConfigureHostTarget(target.ScreenId, target.EndpointId);
+            await window.ShowOnMonitorAsync(target.Monitor!, cancellationToken).ConfigureAwait(true);
         }
 
         if (App.MainWindow is global::ChurchPresenter.MainWindow mainWindow)
@@ -412,7 +432,7 @@ public sealed class OutputWindowService : IOutputWindowService, IDisposable
         DispatcherQueueTimer timer = queue.CreateTimer();
         timer.IsRepeating = true;
         timer.Interval = TimeSpan.FromSeconds(2);
-        timer.Tick += (_, _) => ApplyRequestedStageWindows();
+        timer.Tick += async (_, _) => await ApplyRequestedStageWindowsAsync().ConfigureAwait(true);
         return timer;
     }
 
@@ -475,5 +495,39 @@ public sealed class OutputWindowService : IOutputWindowService, IDisposable
         var queue = App.MainWindow?.DispatcherQueue;
         if (queue == null || !queue.TryEnqueue(() => action()))
             action();
+    }
+
+    private static Task RunOnUiThreadAsync(Func<Task> action, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var queue = App.MainWindow?.DispatcherQueue;
+        if (queue == null || queue.HasThreadAccess)
+            return action();
+
+        var completion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!queue.TryEnqueue(async () =>
+            {
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await action().ConfigureAwait(true);
+                    completion.TrySetResult(null);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    completion.TrySetCanceled(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    completion.TrySetException(ex);
+                }
+            }))
+        {
+            return action();
+        }
+
+        return completion.Task;
     }
 }

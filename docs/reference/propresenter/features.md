@@ -48,12 +48,12 @@ For ChurchPresenter, the important architectural lesson is that these models are
 
 | Architecture concern | Primary feature page | Deep reference |
 |---|---|---|
-| Slide documents, scene graph, themes, Reflow, arrangements, and timelines | [Authoring and slide content](features/authoring-and-slide-content.md) | [Presentations and slides](presentations-and-slides.md), [Render engine architecture](render-engine/render-engine-architecture.md) |
-| Libraries, playlists, generated content, imports, integrations, packages, and provenance | [Libraries, playlists, and generated content](features/libraries-playlists-and-generated-content.md) | [Library and show management](library-show-management/libraries-playlists-integrations.md), [Feature inventory](feature-inventory.md) |
+| Slide documents, scene graph, themes, Reflow, arrangements, and timelines | [Authoring and slide content](features/authoring-and-slide-content.md) | [Presentations and slides](presentations-and-slides.md), [Mental model](output-system/mental-model.md) |
+| Libraries, playlists, generated content, imports, integrations, packages, and provenance | [Libraries, playlists, and generated content](features/libraries-playlists-and-generated-content.md) | [Library and show management](library-show-management/libraries-playlists-integrations.md) |
 | Media assets, cue overrides, Media Bin, Audio Bin, live inputs, audio routing, and cleanup | [Media, audio, and live inputs](features/media-audio-and-live-inputs.md) | [Media and audio management](media-management/media-audio-assets.md), [Output types and signal routing](output-system/output-types-and-signal-routing.md) |
 | Logical screens, layers, Looks, announcements, masks, endpoints, alpha, NDI, SDI, capture, and streaming | [Outputs, screens, and broadcast routing](features/outputs-screens-and-broadcast-routing.md) | [Output system](output-system/README.md), [Layers and Looks](output-system/layers-and-looks.md), [Screens and outputs](output-system/screens-and-outputs.md) |
 | Stage displays, timers, messages, props, multiviews, Show Controls, and clear/recovery | [Stage, overlays, and operator views](features/stage-overlays-and-operator-views.md) | [Stage, announcements, and generated content](output-system/stage-announcements-generated-content.md), [Operator workflows and automation](operator-workflows/show-controls-and-recovery.md) |
-| Macros, slide actions, markers, timeline/timecode, devices, API, Network Link, Control, and Remote | [Automation, control, and remotes](features/automation-control-and-remotes.md) | [Operator workflows and automation](operator-workflows/show-controls-and-recovery.md), [Feature inventory](feature-inventory.md) |
+| Macros, slide actions, markers, timeline/timecode, devices, API, Network Link, Control, and Remote | [Automation, control, and remotes](features/automation-control-and-remotes.md) | [Operator workflows and automation](operator-workflows/show-controls-and-recovery.md) |
 | Seats, activation, support files, sync/migration, preferences, credentials, copyright, localization, and diagnostics | [Administration, portability, and preferences](features/administration-portability-and-preferences.md) | [Library and show management](library-show-management/libraries-playlists-integrations.md), [Sources](output-system/sources.md) |
 
 ## Scalable Documentation Rules
@@ -61,10 +61,9 @@ For ChurchPresenter, the important architectural lesson is that these models are
 When adding more ProPresenter research:
 
 - Put **current user-facing behavior** in the relevant `features/*.md` page.
-- Put **implementation consequences and contracts** in `feature-inventory.md` or the matching subsystem deep dive.
-- Put **render/output pipeline design** in `render-engine/` or `output-system/`.
+- Put **subsystem-specific behavior and cross-feature interactions** in the matching subsystem deep dive.
 - Put **source links and limitations** in `output-system/sources.md`.
-- Preserve the distinction between feature behavior, ChurchPresenter architecture decisions, and known source limitations.
+- Preserve the distinction between feature behavior and known source limitations.
 
 ## Coverage Notes
 
@@ -72,7 +71,7 @@ This reference aims to describe the complete ProPresenter product model, but sou
 
 - **Well-covered current areas**: screens/outputs, Looks, output layers, stage layouts, timers, Media Inspector, media management, video/audio inputs, audio routing, alpha key, NDI, capture/RTMP/Resi, Quick Search, SongSelect, MultiTracks, Planning Center, Bibles, Remote, Control, Network Link, TCP/IP API, MIDI, DMX, sync, and migration.
 - **Current but thinner areas**: dedicated Props, dedicated Messages, Masks, calendar scheduling, timecode, Stream Deck specifics, ProContent acquisition internals, copyright display UI, localization UI, and detailed library-creation UI.
-- **How to handle thin areas**: keep the model conservative, cite the current feature page or adjacent current KB articles that expose the behavior, and record the limitation in `output-system/sources.md` or `feature-inventory.md` before turning it into an implementation requirement.
+- **How to handle thin areas**: keep the model conservative, cite the current feature page or adjacent current KB articles that expose the behavior, and record the limitation in `output-system/sources.md`.
 
 ## Complete Feature Inventory
 

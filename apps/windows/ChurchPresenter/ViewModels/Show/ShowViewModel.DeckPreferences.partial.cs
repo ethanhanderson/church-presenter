@@ -10,6 +10,11 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using ChurchPresenter.Models.Show;
+using ChurchPresenter.Services.Pipeline;
+
+using Microsoft.Extensions.DependencyInjection;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml.Media;
 
@@ -55,9 +60,14 @@ public partial class ShowViewModel
     partial void OnMediaPanelScaleStepChanged(int value)
     {
         OnPropertyChanged(nameof(MediaPanelGridMinItemWidth));
+        OnPropertyChanged(nameof(MediaPanelGridThumbnailWidth));
         OnPropertyChanged(nameof(MediaPanelGridMinItemHeight));
-        OnPropertyChanged(nameof(MediaPanelListThumbWidth));
+        OnPropertyChanged(nameof(MediaPanelGridThumbnailHeight));
+        OnPropertyChanged(nameof(MediaPanelGridThumbnailFrameWidth));
+        OnPropertyChanged(nameof(MediaPanelGridThumbnailFrameHeight));
+        OnPropertyChanged(nameof(MediaPanelGridFallbackThumbnailWidth));
         OnPropertyChanged(nameof(MediaPanelListThumbHeight));
+        OnPropertyChanged(nameof(MediaPanelListThumbnailWidth));
         OnPropertyChanged(nameof(MediaPanelListRowMinHeight));
         if (!_loadingDeckPreferences)
             _ = PersistDeckPreferencesAsync();
@@ -85,6 +95,12 @@ public partial class ShowViewModel
             _ = PersistDeckPreferencesAsync();
     }
 
+    partial void OnOutputClearInactiveAppearanceChanged(OutputClearInactiveAppearance value)
+    {
+        if (!_loadingDeckPreferences)
+            _ = PersistDeckPreferencesAsync();
+    }
+
     // ── Deck preference helpers ───────────────────────────────────────────────
 
     private void LoadDeckPreferences()
@@ -108,16 +124,45 @@ public partial class ShowViewModel
             DeckScaleStep = Math.Clamp(s.DeckScaleStep, 0, 4);
             MediaPanelScaleStep = Math.Clamp(s.MediaPanelScaleStep, 0, 7);
             MediaSeekSeconds = s.MediaSeekSeconds <= 0 ? 5 : Math.Clamp(s.MediaSeekSeconds, 1, 60);
+            OutputClearInactiveAppearance = OutputClearInactiveAppearanceExtensions.FromSettingValue(s.OutputClearInactiveAppearance);
             LoadTransitionToolbarFromSettings(s);
         }
         finally
         {
             _loadingDeckPreferences = false;
         }
+
+        ApplyThumbnailBgColorToAllItems();
+        _deckPreferencesHydrated = true;
+    }
+
+    private void SyncDeckPreferencesToSettings()
+    {
+        if (_loadingDeckPreferences || !_deckPreferencesHydrated)
+            return;
+
+        _settings.Update(s =>
+        {
+            s.Show.DeckViewMode = DeckViewMode;
+            s.Show.GroupBySection = GroupBySection;
+            s.Show.TransparentThumbnailBackgroundEnabled = TransparentThumbnailBackgroundEnabled;
+            s.Show.TransparentThumbnailColor = TransparentThumbnailColor;
+            s.Show.TransparentThumbnailOpacity = TransparentThumbnailOpacity;
+            s.Show.DeckScaleStep = DeckScaleStep;
+            s.Show.MediaPanelScaleStep = MediaPanelScaleStep;
+            s.Show.MediaSeekSeconds = MediaSeekSeconds <= 0 ? 5 : Math.Clamp(MediaSeekSeconds, 1, 60);
+            s.Show.OutputClearInactiveAppearance = OutputClearInactiveAppearance.ToSettingValue();
+            PersistTransitionToolbarToSettings(s);
+        });
     }
 
     private async Task PersistDeckPreferencesAsync()
     {
+        if (!_deckPreferencesHydrated)
+            return;
+
+        SyncDeckPreferencesToSettings();
+
         _deckPrefDebounceCts?.Cancel();
         _deckPrefDebounceCts = new CancellationTokenSource();
         var token = _deckPrefDebounceCts.Token;
@@ -130,18 +175,6 @@ public partial class ShowViewModel
             return;
         }
 
-        _settings.Update(s =>
-        {
-            s.Show.DeckViewMode = DeckViewMode;
-            s.Show.GroupBySection = GroupBySection;
-            s.Show.TransparentThumbnailBackgroundEnabled = TransparentThumbnailBackgroundEnabled;
-            s.Show.TransparentThumbnailColor = TransparentThumbnailColor;
-            s.Show.TransparentThumbnailOpacity = TransparentThumbnailOpacity;
-            s.Show.DeckScaleStep = DeckScaleStep;
-            s.Show.MediaPanelScaleStep = MediaPanelScaleStep;
-            s.Show.MediaSeekSeconds = MediaSeekSeconds <= 0 ? 5 : Math.Clamp(MediaSeekSeconds, 1, 60);
-            PersistTransitionToolbarToSettings(s);
-        });
         await _settings.SaveAsync().ConfigureAwait(true);
     }
 
@@ -327,13 +360,18 @@ public partial class ShowViewModel
     {
         var color = BuildThumbnailBgColor();
         foreach (var item in SlideDeckItems)
-            item.ThumbnailBgColor = color;
+            item.SetThumbnailBgColorForDeckPref(color);
         foreach (var s in BrowseStackSections)
+        {
             foreach (var item in s.SlideRows)
-                item.ThumbnailBgColor = color;
+                item.SetThumbnailBgColorForDeckPref(color);
+        }
+
         foreach (var s in SlideDeckGroupedSections)
+        {
             foreach (var item in s.SlideRows)
-                item.ThumbnailBgColor = color;
+                item.SetThumbnailBgColorForDeckPref(color);
+        }
     }
 
     private void ApplyDeckSettingsToItems(IEnumerable<ShowSlideDeckItem> items)
@@ -343,11 +381,19 @@ public partial class ShowViewModel
         var list = items.ToList();
         foreach (var item in list)
         {
-            item.ThumbnailBgColor = color;
+            item.SetThumbnailBgColorForDeckPref(color);
             item.DeckListItemHeight = h;
         }
 
         ApplyContiguousGroupFooterLabels(list);
+    }
+
+    private void RequestDeckThumbnailRefresh(string moment)
+    {
+        if (!_deckPreferencesHydrated)
+            return;
+
+        App.Services?.GetService<IShowDeckThumbnailService>()?.RefreshDeckThumbnails(this, moment);
     }
 
     private void ApplyDeckSettingsToSection(ShowPresentationDeckSection section)
@@ -511,13 +557,13 @@ public partial class ShowViewModel
         OpenDocument?.SourcePath ?? SelectedPresentationPath;
 
     private string? GetNavigationSlideId() =>
-        !string.IsNullOrWhiteSpace(SelectedSlideId) ? SelectedSlideId : _engine.CurrentSlideId;
+        !string.IsNullOrWhiteSpace(SelectedSlideId) ? SelectedSlideId : GetLiveSlideId();
 
     private string? GetNavigationPresentationPath() =>
-        !string.IsNullOrWhiteSpace(SelectedSlideId) ? SelectedSlidePresentationPath : _engine.PresentationPath;
+        !string.IsNullOrWhiteSpace(SelectedSlideId) ? SelectedSlidePresentationPath : GetLivePresentationPath();
 
     private string? GetNavigationSlideInstanceKey() =>
-        !string.IsNullOrWhiteSpace(SelectedSlideId) ? _selectedSlideInstanceKey : _engine.CurrentSlideInstanceKey;
+        !string.IsNullOrWhiteSpace(SelectedSlideId) ? _selectedSlideInstanceKey : GetLiveSlideInstanceKey();
 
     private void ApplySlideSelectionState(
         string? slideId,
@@ -571,7 +617,7 @@ public partial class ShowViewModel
         {
             _userOverrideSlideSelection = userOverride.Value;
             OnPropertyChanged(nameof(UserOverrideSlideSelection));
-            _engine.SetUserOverrideSelection(userOverride.Value);
+            _operatorSelection.SetUserOverrideSelection(userOverride.Value);
         }
 
         if (!slideChanged && !pathChanged && !instanceChanged && !keysChanged && !anchorChanged)
@@ -580,9 +626,9 @@ public partial class ShowViewModel
         // Keep the engine's operator cursor in sync so backend adapters and other
         // consumers can access the operator selection without going through ShowViewModel.
         if (normalizedSlideId != null)
-            _engine.SelectSlide(normalizedPath, normalizedSlideId, normalizedInstanceKey);
+            _operatorSelection.SelectSlide(normalizedPath, normalizedSlideId, normalizedInstanceKey);
         else
-            _engine.ClearSelection();
+            _operatorSelection.ClearSelection();
 
         _activePresentation.SetSelectedSlideId(normalizedSlideId);
         OnPropertyChanged(nameof(SelectedSlideId));
@@ -975,26 +1021,24 @@ public partial class ShowViewModel
 
     private void TryOpenAudienceWindows()
     {
-        if (!_engine.IsAudienceEnabled)
+        if (!_outputTargets.AudienceEnabled)
         {
             _outputWindows.CloseAll();
             return;
         }
 
-        _outputWindows.OpenAudience();
+        _ = _outputWindows.OpenAudienceAsync();
     }
 
     private void TryOpenStageWindows()
     {
-        if (!_engine.IsStageEnabled)
+        if (!_outputTargets.StageEnabled)
         {
             _outputWindows.CloseStage();
-            _engine.SetStageEnabled(false);
             return;
         }
 
-        _outputWindows.OpenStage();
-        _engine.SetStageEnabled(true);
+        _ = _outputWindows.OpenStageAsync();
     }
 
     private void SelectSlideInDeck(string? slideId, string? presentationPath = null, string? instanceKey = null)
@@ -1099,11 +1143,11 @@ public partial class ShowViewModel
         if (preparedCue == null)
             return;
 
-        _engine.EnterPreparedSlideCue(preparedCue with
+        _ = _cueDispatcher.DispatchSlideCueAsync(preparedCue with
         {
             LayerKind = ResolvePresentationDestinationLayer(normalizedPath),
         });
-        _liveProduction.ReleaseClearedLayers([ResolvePresentationDestinationLayer(normalizedPath)]);
+        _ = _cueDispatcher.ReleaseClearedLayersAsync([ResolvePresentationDestinationLayer(normalizedPath)]);
 
         RefreshAllSlideDeckState();
         NotifyPreviewState();
@@ -1163,7 +1207,7 @@ public partial class ShowViewModel
     }
 
     /// <summary>Starts or continues held-key slide seeking until <see cref="StopSlideSeek"/> is called.</summary>
-    public Task<bool> StartSlideSeekAsync(VirtualKey key)
+    public async Task<bool> StartSlideSeekAsync(VirtualKey key)
     {
         int direction;
         switch (key)
@@ -1178,23 +1222,23 @@ public partial class ShowViewModel
                 direction = -1;
                 break;
             default:
-                return Task.FromResult(false);
+                return false;
         }
 
         if (Slides.Count == 0 && BrowseStackSections.Count == 0)
-            return Task.FromResult(false);
+            return false;
 
-        return _engine.StartSeekAsync(direction, async dir =>
+        await _rapidSeek.BeginRapidSeekAsync(direction, async dir =>
         {
-            var result = ShowBrowseStack && HasBrowseStackContent
+            return ShowBrowseStack && HasBrowseStackContent
                 ? await MoveBrowseStackSelectionAsync(dir).ConfigureAwait(true)
                 : await MoveSlideSelectionAsync(dir).ConfigureAwait(true);
-            return result;
-        });
+        }).ConfigureAwait(true);
+        return true;
     }
 
     /// <summary>Stops any in-progress held-key slide seeking.</summary>
-    public void StopSlideSeek() => _engine.StopSeek();
+    public void StopSlideSeek() => _rapidSeek.EndRapidSeek();
 
     private async Task<SlideSeekStepResult> MoveBrowseStackSelectionAsync(int direction)
     {
@@ -1382,7 +1426,7 @@ public partial class ShowViewModel
     {
         OnPropertyChanged(nameof(SelectedSlide));
         OnPropertyChanged(nameof(LiveSlide));
-        foreach (ShowClearActionViewModel action in OutputClearActions)
+        foreach (ShowClearActionViewModel action in OutputClearActions.ToArray())
             action.ExecuteCommand.NotifyCanExecuteChanged();
     }
 
